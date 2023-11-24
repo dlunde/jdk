@@ -666,6 +666,10 @@ Node* PhaseGVN::apply_ideal(Node* k, bool can_reshape) {
   Node* i = BarrierSet::barrier_set()->barrier_set_c2()->ideal_node(this, k, can_reshape);
   if (i == nullptr) {
     i = k->Ideal(this, can_reshape);
+    if (i && C->_debug->member(k)) {
+      C->print_method(PHASE_DEBUG, 1, i);
+      /* assert(false, "Optimization due to igvn worklist push"); */
+    }
   }
   return i;
 }

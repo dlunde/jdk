@@ -728,6 +728,7 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
   uint estimated_size = method()->code_size()*4+64;
   estimated_size = (estimated_size < MINIMUM_NODE_HASH ? MINIMUM_NODE_HASH : estimated_size);
   _igvn_worklist = new (comp_arena()) Unique_Node_List(comp_arena());
+  _debug = new (comp_arena()) Unique_Node_List(comp_arena());
   _types = new (comp_arena()) Type_Array(comp_arena());
   _node_hash = new (comp_arena()) NodeHash(comp_arena(), estimated_size);
   PhaseGVN gvn;
@@ -2241,10 +2242,11 @@ void Compile::Optimize() {
     TracePhase tp("iterGVN", &timers[_t_iterGVN]);
     igvn.optimize();
   }
+  _debug->clear();
 
   if (failing())  return;
 
-  print_method(PHASE_ITER_GVN1, 2);
+  print_method(PHASE_ITER_GVN1, 1);
 
   process_for_unstable_if_traps(igvn);
 

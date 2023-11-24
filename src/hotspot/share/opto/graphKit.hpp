@@ -95,6 +95,7 @@ class GraphKit : public Phase {
   void*         barrier_set_state() const { return C->barrier_set_state(); }
 
   void record_for_igvn(Node* n) const { C->record_for_igvn(n); }  // delegate to Compile
+  void debug(Node* n) const { C->debug(n); }  // delegate to Compile
   void remove_for_igvn(Node* n) const { C->remove_for_igvn(n); }
 
   // Handy well-known nodes:

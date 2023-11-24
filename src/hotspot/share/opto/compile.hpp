@@ -444,6 +444,9 @@ private:
   // Shared worklist for all IGVN rounds. Nodes can be pushed to it at any time.
   // If pushed outside IGVN, the Node is processed in the next IGVN round.
   Unique_Node_List*     _igvn_worklist;
+public:
+  Unique_Node_List*     _debug;
+private:
 
   // Shared type array for GVN, IGVN and CCP. It maps node idx -> Type*.
   Type_Array*           _types;
@@ -1003,6 +1006,7 @@ private:
     return _node_hash;
   }
   inline void       record_for_igvn(Node* n);   // Body is after class Unique_Node_List in node.hpp.
+  inline void       debug(Node* n);   // Body is after class Unique_Node_List in node.hpp.
   inline void       remove_for_igvn(Node* n);   // Body is after class Unique_Node_List in node.hpp.
   void          set_initial_gvn(PhaseGVN *gvn)           { _initial_gvn = gvn; }
 

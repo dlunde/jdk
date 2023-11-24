@@ -1563,6 +1563,11 @@ Node* GraphKit::make_load(Node* ctl, Node* adr, const Type* t, BasicType bt,
   if (((bt == T_OBJECT) && C->do_escape_analysis()) || C->eliminate_boxing()) {
     // Improve graph before escape analysis and boxing elimination.
     record_for_igvn(ld);
+    // Register parent LoadN of decode nodes here (with record_for_igvn), and also keep track of them separately
+    if (ld->is_DecodeN()) {
+      record_for_igvn(ld->in(1));
+      debug(ld->in(1));
+    }
   }
   return ld;
 }

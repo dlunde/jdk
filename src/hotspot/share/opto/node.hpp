@@ -1783,6 +1783,10 @@ inline void Compile::record_for_igvn(Node* n) {
   _igvn_worklist->push(n);
 }
 
+inline void Compile::debug(Node* n) {
+  _debug->push(n);
+}
+
 // Inline definition of Compile::remove_for_igvn must be deferred to this point.
 inline void Compile::remove_for_igvn(Node* n) {
   _igvn_worklist->remove(n);
