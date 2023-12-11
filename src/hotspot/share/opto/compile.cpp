@@ -838,7 +838,7 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
 
   // If any phase is randomized for stress testing, seed random number
   // generation and log the seed for repeatability.
-  if (StressLCM || StressGCM || StressIGVN || StressCCP) {
+  if (StressLCM || StressGCM || StressIGVN || StressCCP || StressMacroExpansion ) {
     if (FLAG_IS_DEFAULT(StressSeed) || (FLAG_IS_ERGO(StressSeed) && directive->RepeatCompilationOption)) {
       _stress_seed = static_cast<uint>(Ticks::now().nanoseconds());
       FLAG_SET_ERGO(StressSeed, _stress_seed);
@@ -5050,6 +5050,15 @@ void CloneMap::dump(node_idx_t key, outputStream* st) const {
   if (val != 0) {
     NodeCloneInfo ni(val);
     ni.dump_on(st);
+  }
+}
+
+// Shuffle macro nodes
+void Compile::shuffle_macro_nodes() {
+  if (_macro_nodes.length() < 2) return;
+  for (uint i = _macro_nodes.length() - 1; i >= 1; i--) {
+    uint j = C->random() % (i + 1);
+    swap(_macro_nodes.at(i), _macro_nodes.at(j));
   }
 }
 

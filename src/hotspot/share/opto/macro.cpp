@@ -2428,6 +2428,9 @@ bool PhaseMacroExpand::expand_macro_nodes() {
   // Last attempt to eliminate macro nodes.
   eliminate_macro_nodes();
   if (C->failing())  return true;
+  if (StressMacroExpansion) {
+    C->shuffle_macro_nodes();
+  }
 
   // Eliminate Opaque and LoopLimit nodes. Do it after all loop optimizations.
   bool progress = true;

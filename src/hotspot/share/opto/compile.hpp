@@ -778,6 +778,7 @@ private:
   void remove_useless_unstable_if_traps(Unique_Node_List &useful);
   void process_for_unstable_if_traps(PhaseIterGVN& igvn);
 
+  void shuffle_macro_nodes();
   void sort_macro_nodes();
 
   void mark_parse_predicate_nodes_useless(PhaseIterGVN& igvn);
