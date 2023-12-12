@@ -39,6 +39,7 @@ import jdk.test.lib.process.ProcessTools;
  * @run driver compiler.debug.TestGenerateStressSeed StressGCM
  * @run driver compiler.debug.TestGenerateStressSeed StressIGVN
  * @run driver compiler.debug.TestGenerateStressSeed StressCCP
+ * @run driver compiler.debug.TestGenerateStressSeed StressMacroExpansion
  */
 
 public class TestGenerateStressSeed {

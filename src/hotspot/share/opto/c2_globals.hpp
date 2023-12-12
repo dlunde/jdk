@@ -629,6 +629,9 @@
   notproduct(bool, TraceCISCSpill, false,                                   \
           "Trace allocators use of cisc spillable instructions")            \
                                                                             \
+  develop(bool, TraceMacroExpansion, false,                                 \
+          "Trace visited nodes in macro expansion")                         \
+                                                                            \
   product(bool, SplitIfBlocks, true,                                        \
           "Clone compares and control flow through merge points to fold "   \
           "some branches")                                                  \

@@ -299,6 +299,7 @@ public class CtwRunner {
                 "-XX:+StressGCM",
                 "-XX:+StressIGVN",
                 "-XX:+StressCCP",
+                "-XX:+StressMacroExpansion",
                 // StressSeed is uint
                 "-XX:StressSeed=" + Math.abs(rng.nextInt())));
 

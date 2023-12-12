@@ -24,7 +24,7 @@
 /*
  * @test
  * @key stress randomness
- * @bug 8252219 8256535
+ * @bug 8252219 8256535 8317349
  * @requires vm.compiler2.enabled
  * @summary Tests that different combinations of stress options and
  *          -XX:StressSeed=N are accepted.
@@ -43,6 +43,10 @@
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressGCM
  *      compiler.arguments.TestStressOptions
  * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressGCM -XX:StressSeed=42
+ *      compiler.arguments.TestStressOptions
+ * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressMacroExpansion
+ *      compiler.arguments.TestStressOptions
+ * @run main/othervm -XX:+UnlockDiagnosticVMOptions -XX:+StressMacroExpansion -XX:StressSeed=42
  *      compiler.arguments.TestStressOptions
  */
 

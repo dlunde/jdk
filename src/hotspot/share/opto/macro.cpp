@@ -2422,6 +2422,14 @@ void PhaseMacroExpand::eliminate_macro_nodes() {
 #endif
 }
 
+#ifndef PRODUCT
+void PhaseMacroExpand::dump_node(const Node* n) {
+  if (TraceMacroExpansion) {
+    n->dump();
+  }
+}
+#endif
+
 //------------------------------expand_macro_nodes----------------------
 //  Returns true if a failure occurred.
 bool PhaseMacroExpand::expand_macro_nodes() {
@@ -2438,6 +2446,7 @@ bool PhaseMacroExpand::expand_macro_nodes() {
     progress = false;
     for (int i = C->macro_count(); i > 0; i--) {
       Node* n = C->macro_node(i-1);
+      NOT_PRODUCT(dump_node(n);)
       bool success = false;
       DEBUG_ONLY(int old_macro_count = C->macro_count();)
       if (n->Opcode() == Op_LoopLimit) {
@@ -2534,6 +2543,7 @@ bool PhaseMacroExpand::expand_macro_nodes() {
   while (C->macro_count() > 0) {
     int macro_count = C->macro_count();
     Node * n = C->macro_node(macro_count-1);
+    NOT_PRODUCT(dump_node(n);)
     assert(n->is_macro(), "only macro nodes expected here");
     if (_igvn.type(n) == Type::TOP || (n->in(0) != nullptr && n->in(0)->is_top())) {
       // node is unreachable, so don't try to expand it
@@ -2587,6 +2597,7 @@ bool PhaseMacroExpand::expand_macro_nodes() {
   while (C->macro_count() > 0) {
     int macro_count = C->macro_count();
     Node * n = C->macro_node(macro_count-1);
+    NOT_PRODUCT(dump_node(n);)
     assert(n->is_macro(), "only macro nodes expected here");
     if (_igvn.type(n) == Type::TOP || (n->in(0) != nullptr && n->in(0)->is_top())) {
       // node is unreachable, so don't try to expand it
