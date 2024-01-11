@@ -704,7 +704,7 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 #endif
   LoopNode* head = loop->_head->as_Loop();
 
-  C->print_method(PHASE_BEFORE_LOOP_PEELING, 4, head);
+  if (UseNewCode) { C->print_method(PHASE_BEFORE_LOOP_PEELING, 4, head); }
 
   bool counted_loop = head->is_CountedLoop();
   if (counted_loop) {
@@ -799,7 +799,7 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
 
   loop->record_for_igvn();
 
-  C->print_method(PHASE_AFTER_LOOP_PEELING, 4, new_head);
+  if (UseNewCode) { C->print_method(PHASE_AFTER_LOOP_PEELING, 4, new_head); }
 }
 
 //------------------------------policy_maximally_unroll------------------------
@@ -1633,7 +1633,7 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   CountedLoopEndNode *main_end = main_head->loopexit();
   assert(main_end->outcnt() == 2, "1 true, 1 false path only");
 
-  C->print_method(PHASE_BEFORE_PRE_MAIN_POST, 4, main_head);
+  if (UseNewCode) { C->print_method(PHASE_BEFORE_PRE_MAIN_POST, 4, main_head); }
 
   Node *pre_header= main_head->in(LoopNode::EntryControl);
   Node *init      = main_head->init_trip();
@@ -1832,7 +1832,7 @@ void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_n
   peeled_dom_test_elim(loop,old_new);
   loop->record_for_igvn();
 
-  C->print_method(PHASE_AFTER_PRE_MAIN_POST, 4, main_head);
+  if (UseNewCode) { C->print_method(PHASE_AFTER_PRE_MAIN_POST, 4, main_head); }
 }
 
 //------------------------------insert_vector_post_loop------------------------
@@ -2136,7 +2136,7 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
   CountedLoopNode *loop_head = loop->_head->as_CountedLoop();
   CountedLoopEndNode *loop_end = loop_head->loopexit();
 
-  C->print_method(PHASE_BEFORE_LOOP_UNROLLING, 4, loop_head);
+  if (UseNewCode) { C->print_method(PHASE_BEFORE_LOOP_UNROLLING, 4, loop_head); }
 
 #ifndef PRODUCT
   if (PrintOpto && VerifyLoopOptimizations) {
@@ -2386,7 +2386,7 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
   }
 #endif
 
-  C->print_method(PHASE_AFTER_LOOP_UNROLLING, 4, clone_head);
+  if (UseNewCode) { C->print_method(PHASE_AFTER_LOOP_UNROLLING, 4, clone_head); }
 }
 
 //------------------------------do_maximally_unroll----------------------------
@@ -3016,7 +3016,7 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
       // stride_con and scale_con can be negative which will flip about the
       // sense of the test.
 
-      C->print_method(PHASE_BEFORE_RANGE_CHECK_ELIMINATION, 4, iff);
+      if (UseNewCode) { C->print_method(PHASE_BEFORE_RANGE_CHECK_ELIMINATION, 4, iff); }
 
       // Perform the limit computations in jlong to avoid overflow
       jlong lscale_con = scale_con;
@@ -3119,7 +3119,7 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
         }
       }
 
-      C->print_method(PHASE_AFTER_RANGE_CHECK_ELIMINATION, 4, cl);
+      if (UseNewCode) { C->print_method(PHASE_AFTER_RANGE_CHECK_ELIMINATION, 4, cl); }
 
     } // End of is IF
   }

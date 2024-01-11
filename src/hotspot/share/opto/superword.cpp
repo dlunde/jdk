@@ -2286,7 +2286,7 @@ void SuperWord::schedule() {
 #endif
 
   CountedLoopNode* cl = lpt()->_head->as_CountedLoop();
-  _phase->C->print_method(PHASE_SUPERWORD1_BEFORE_SCHEDULE, 4, cl);
+  if (UseNewCode) { _phase->C->print_method(PHASE_SUPERWORD1_BEFORE_SCHEDULE, 4, cl); }
 
   // (4) Use the memops_schedule to re-order the memops in all slices.
   schedule_reorder_memops(memops_schedule);
@@ -2395,7 +2395,7 @@ bool SuperWord::output() {
     lpt()->dump_head();
   }
 #endif
-  _phase->C->print_method(PHASE_SUPERWORD2_BEFORE_OUTPUT, 4, cl);
+  if (UseNewCode) { _phase->C->print_method(PHASE_SUPERWORD2_BEFORE_OUTPUT, 4, cl); }
 
   adjust_pre_loop_limit_to_align_main_loop_vectors();
 
@@ -2725,7 +2725,7 @@ bool SuperWord::output() {
     }
   }
 
-  _phase->C->print_method(PHASE_SUPERWORD3_AFTER_OUTPUT, 4, cl);
+  if (UseNewCode) { _phase->C->print_method(PHASE_SUPERWORD3_AFTER_OUTPUT, 4, cl); }
 
   return true;
 }
