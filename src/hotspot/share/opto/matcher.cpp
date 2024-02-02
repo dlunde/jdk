@@ -194,6 +194,16 @@ void Matcher::match( ) {
   }
   // One-time initialization of some register masks.
   init_spill_mask( C->root()->in(1) );
+#ifdef _LP64
+  uint return_address_slots = 2;
+#else
+  uint return_address_slots = 1;
+#endif
+  if (!RegMask::can_represent(return_addr(), return_address_slots)) {
+    // Bailout. We do not have space to represent the return address.
+    C->record_method_not_compilable("must be able to represent the return address in reg mask");
+  }
+  if (C->failing())  return;  // bailed out on return address failure
   _return_addr_mask = return_addr();
 #ifdef _LP64
   // Pointers take 2 slots in 64-bit land
