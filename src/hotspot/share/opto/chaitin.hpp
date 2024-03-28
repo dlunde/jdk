@@ -106,6 +106,7 @@ private:
   RegMask _mask;                // Allowed registers for this LRG
   uint _mask_size;              // cache of _mask.Size();
 public:
+  void init_mask() { _mask.init(); }
   int compute_mask_size() const { return _mask.is_AllStack() ? AllStack_size : _mask.Size(); }
   void set_mask_size( int size ) {
     assert((size == (int)AllStack_size) || (size == (int)_mask.Size()), "");

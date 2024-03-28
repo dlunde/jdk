@@ -73,8 +73,8 @@ class RegMask {
     // on the stack (stack registers) up to some interesting limit.  Methods
     // that need more parameters will NOT be compiled.  On Intel, the limit
     // is something like 90+ parameters.
-    int       _RM_I[RM_SIZE];
-    uintptr_t _RM_UP[_RM_SIZE];
+    int       *_RM_I;
+    uintptr_t *_RM_UP;
   };
 
   // The low and high water marks represents the lowest and highest word
@@ -109,6 +109,10 @@ class RegMask {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
+  void init() {
+    _RM_UP = MallocArrayAllocator<uintptr_t>::allocate(_RM_SIZE, mtCompiler);
+  }
+
   // A constructor only used by the ADLC output.  All mask fields are filled
   // in directly.  Calls to this look something like RM(1,2,3,4);
   RegMask(
@@ -116,6 +120,7 @@ class RegMask {
     FORALL_BODY
 #   undef BODY
     int dummy = 0) {
+    init();
 #if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
 #   define BODY(I) _RM_I[I] = a##I;
 #else
@@ -133,6 +138,7 @@ class RegMask {
 
   // Handy copying constructor
   RegMask(RegMask *rm) {
+    init();
     _hwm = rm->_hwm;
     _lwm = rm->_lwm;
     for (unsigned i = 0; i < _RM_SIZE; i++) {
@@ -142,13 +148,41 @@ class RegMask {
   }
 
   // Construct an empty mask
-  RegMask() : _RM_UP(), _lwm(_RM_MAX), _hwm(0) {
+  RegMask() : _lwm(_RM_MAX), _hwm(0) {
+    init();
+    for (unsigned i = 0; i < _RM_SIZE; ++i) {
+      _RM_UP[i] = 0;
+    }
     assert(valid_watermarks(), "post-condition");
   }
 
   // Construct a mask with a single bit
   RegMask(OptoReg::Name reg) : RegMask() {
     Insert(reg);
+  }
+
+  ~RegMask() {
+    MallocArrayAllocator<uintptr_t>::free(_RM_UP);
+  }
+
+  RegMask(const RegMask &rm) {
+    init();
+    _hwm = rm._hwm;
+    _lwm = rm._lwm;
+    for (unsigned i = 0; i < _RM_SIZE; i++) {
+      _RM_UP[i] = rm._RM_UP[i];
+    }
+    assert(valid_watermarks(), "post-condition");
+  }
+  RegMask& operator= (const RegMask &rm) {
+    init();
+    _hwm = rm._hwm;
+    _lwm = rm._lwm;
+    for (unsigned i = 0; i < _RM_SIZE; i++) {
+      _RM_UP[i] = rm._RM_UP[i];
+    }
+    assert(valid_watermarks(), "post-condition");
+    return *this;
   }
 
   // Check for register being in mask

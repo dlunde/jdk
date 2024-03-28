@@ -230,6 +230,7 @@ void Matcher::match( ) {
   _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMask, argcnt );
   uint i;
   for( i = 0; i<argcnt; i++ ) {
+    _calling_convention_mask[i].init();
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();
   }
 
