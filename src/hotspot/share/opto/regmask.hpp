@@ -30,6 +30,7 @@
 #include "utilities/count_leading_zeros.hpp"
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "memory/allocation.inline.hpp"
 
 class LRG;
 
