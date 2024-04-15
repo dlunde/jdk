@@ -30,7 +30,7 @@
 #include "utilities/count_leading_zeros.hpp"
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
-#include "memory/allocation.inline.hpp"
+#include "memory/allocation.hpp"
 
 class LRG;
 
@@ -111,7 +111,7 @@ class RegMask {
          };
 
   void init() {
-    _RM_UP = MallocArrayAllocator<uintptr_t>::allocate(_RM_SIZE, mtCompiler);
+    _RM_UP = NEW_C_HEAP_ARRAY(uintptr_t, _RM_SIZE, mtCompiler);
   }
 
   // A constructor only used by the ADLC output.  All mask fields are filled
@@ -163,7 +163,7 @@ class RegMask {
   }
 
   ~RegMask() {
-    MallocArrayAllocator<uintptr_t>::free(_RM_UP);
+    FREE_C_HEAP_ARRAY(uintptr_t, _RM_UP);
   }
 
   RegMask(const RegMask &rm) {
