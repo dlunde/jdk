@@ -114,6 +114,10 @@ class RegMask {
     _RM_UP = NEW_C_HEAP_ARRAY(uintptr_t, _RM_SIZE, mtCompiler);
   }
 
+  void deinit() {
+    FREE_C_HEAP_ARRAY(uintptr_t, _RM_UP);
+  }
+
   // A constructor only used by the ADLC output.  All mask fields are filled
   // in directly.  Calls to this look something like RM(1,2,3,4);
   RegMask(
@@ -163,7 +167,7 @@ class RegMask {
   }
 
   ~RegMask() {
-    FREE_C_HEAP_ARRAY(uintptr_t, _RM_UP);
+    deinit();
   }
 
   RegMask(const RegMask &rm) {
@@ -176,7 +180,7 @@ class RegMask {
     assert(valid_watermarks(), "post-condition");
   }
   RegMask& operator= (const RegMask &rm) {
-    init();
+    deinit(); init();
     _hwm = rm._hwm;
     _lwm = rm._lwm;
     for (unsigned i = 0; i < _RM_SIZE; i++) {
