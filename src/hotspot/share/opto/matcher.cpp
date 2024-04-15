@@ -228,9 +228,9 @@ void Matcher::match( ) {
   VMRegPair *vm_parm_regs  = NEW_RESOURCE_ARRAY( VMRegPair, argcnt );
   _parm_regs               = NEW_RESOURCE_ARRAY( OptoRegPair, argcnt );
   _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMask, argcnt );
+  new(_calling_convention_mask) RegMask[argcnt];
   uint i;
   for( i = 0; i<argcnt; i++ ) {
-    _calling_convention_mask[i].init();
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();
   }
 
@@ -442,6 +442,7 @@ void Matcher::match( ) {
 
 static RegMask *init_input_masks( uint size, RegMask &ret_adr, RegMask &fp ) {
   RegMask *rms = NEW_RESOURCE_ARRAY( RegMask, size );
+  new(rms) RegMask[size];
   // Do all the pre-defined register masks
   rms[TypeFunc::Control  ] = RegMask::Empty;
   rms[TypeFunc::I_O      ] = RegMask::Empty;

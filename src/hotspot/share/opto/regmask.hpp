@@ -74,9 +74,18 @@ class RegMask {
     // on the stack (stack registers) up to some interesting limit.  Methods
     // that need more parameters will NOT be compiled.  On Intel, the limit
     // is something like 90+ parameters.
-    int       *_RM_I;
-    uintptr_t *_RM_UP;
+    int       _RM_I[RM_SIZE];
+    uintptr_t _RM_UP[_RM_SIZE];
   };
+
+  union {
+    int       *_RM_I_EXT;
+    uintptr_t *_RM_UP_EXT = nullptr;
+  };
+
+  // Infinite stack flag. Indicates that all values beyond the high water mark
+  // are set.
+  bool infinite = false;
 
   // The low and high water marks represents the lowest and highest word
   // that might contain set register mask bits, respectively. We guarantee
@@ -84,6 +93,9 @@ class RegMask {
   // and between the two marks can still be 0.
   unsigned int _lwm;
   unsigned int _hwm;
+
+  // Arena used for growing the register mask (rarely needed)
+  Arena* _arena = nullptr;
 
  public:
   enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
@@ -110,14 +122,6 @@ class RegMask {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
-  void init() {
-    _RM_UP = NEW_C_HEAP_ARRAY(uintptr_t, _RM_SIZE, mtCompiler);
-  }
-
-  void deinit() {
-    FREE_C_HEAP_ARRAY(uintptr_t, _RM_UP);
-  }
-
   // A constructor only used by the ADLC output.  All mask fields are filled
   // in directly.  Calls to this look something like RM(1,2,3,4);
   RegMask(
@@ -125,7 +129,6 @@ class RegMask {
     FORALL_BODY
 #   undef BODY
     int dummy = 0) {
-    init();
 #if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
 #   define BODY(I) _RM_I[I] = a##I;
 #else
@@ -141,37 +144,20 @@ class RegMask {
     assert(valid_watermarks(), "post-condition");
   }
 
-  // Handy copying constructor
-  RegMask(RegMask *rm) {
-    init();
-    _hwm = rm->_hwm;
-    _lwm = rm->_lwm;
-    for (unsigned i = 0; i < _RM_SIZE; i++) {
-      _RM_UP[i] = rm->_RM_UP[i];
-    }
-    assert(valid_watermarks(), "post-condition");
-  }
-
   // Construct an empty mask
-  RegMask() : _lwm(_RM_MAX), _hwm(0) {
-    init();
-    for (unsigned i = 0; i < _RM_SIZE; ++i) {
-      _RM_UP[i] = 0;
-    }
+  RegMask(Arena* arena = nullptr) : _RM_UP(), _lwm(_RM_MAX), _hwm(0) {
+    _arena = arena;
     assert(valid_watermarks(), "post-condition");
   }
 
   // Construct a mask with a single bit
-  RegMask(OptoReg::Name reg) : RegMask() {
+  RegMask(OptoReg::Name reg, Arena* arena = nullptr) : RegMask(arena) {
     Insert(reg);
   }
 
-  ~RegMask() {
-    deinit();
-  }
-
+  ~RegMask() {}
   RegMask(const RegMask &rm) {
-    init();
+    assert(rm._RM_UP_EXT == nullptr, "copy constructor only allowed for non-extended RegMask");
     _hwm = rm._hwm;
     _lwm = rm._lwm;
     for (unsigned i = 0; i < _RM_SIZE; i++) {
@@ -180,7 +166,7 @@ class RegMask {
     assert(valid_watermarks(), "post-condition");
   }
   RegMask& operator= (const RegMask &rm) {
-    deinit(); init();
+    assert(rm._RM_UP_EXT == nullptr && _RM_UP_EXT == nullptr, "copy only allowed between non-extended RegMasks");
     _hwm = rm._hwm;
     _lwm = rm._lwm;
     for (unsigned i = 0; i < _RM_SIZE; i++) {
