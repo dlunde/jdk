@@ -840,7 +840,7 @@ static void add_call_kills(MachProjNode *proj, RegMask& regs, const char* save_p
 
 //------------------------------sched_call-------------------------------------
 uint PhaseCFG::sched_call(Block* block, uint node_cnt, Node_List& worklist, GrowableArray<int>& ready_cnt, MachCallNode* mcall, VectorSet& next_call) {
-  RegMaskStatic regs;
+  RegMask regs;
 
   // Schedule all the users of the call right now.  All the users are
   // projection Nodes, so they must be scheduled next to the call.
@@ -1159,7 +1159,7 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
     }
 
     if (n->is_Mach() && n->as_Mach()->has_call()) {
-      RegMaskStatic regs;
+      RegMask regs;
       regs.Insert(_matcher.c_frame_pointer());
       regs.OR(n->out_RegMask());
 

@@ -32,7 +32,7 @@
 #include "utilities/globalDefinitions.hpp"
 
 class LRG;
-class RegMaskStatic;
+class RegMask;
 
 //-------------Non-zero bit search methods used by RegMask---------------------
 // Find lowest 1, undefined if empty/0
@@ -56,10 +56,10 @@ static unsigned int find_highest_bit(uintptr_t mask) {
 // However, it means the ADLC can redefine the unroll macro and all loops
 // over register masks will be unrolled by the correct amount.
 
-class RegMask {
+class RegMaskBase {
 
   friend class RegMaskIterator;
-  friend class RegMaskStatic;
+  friend class RegMask;
 
   // The RM_SIZE is aligned to 64-bit - assert that this holds
   LP64_ONLY(STATIC_ASSERT(is_aligned(RM_SIZE, 2)));
@@ -86,14 +86,14 @@ class RegMask {
   unsigned int _lwm;
   unsigned int _hwm;
 
-  RegMask(int *RM_I) : _RM_I(RM_I), _lwm(_RM_MAX), _hwm(0) {}
-  RegMask(uintptr_t *RM_UP) : _RM_UP(RM_UP), _lwm(_RM_MAX), _hwm(0) {}
+  RegMaskBase(int *RM_I) : _RM_I(RM_I), _lwm(_RM_MAX), _hwm(0) {}
+  RegMaskBase(uintptr_t *RM_UP) : _RM_UP(RM_UP), _lwm(_RM_MAX), _hwm(0) {}
 
-  RegMask() = delete;
-  RegMask(const RegMask& rm) = delete;
-  /* RegMask(const RegMask&& rm) = delete; */
+  RegMaskBase() = delete;
+  RegMaskBase(const RegMaskBase& rm) = delete;
+  /* RegMaskBase(const RegMaskBase&& rm) = delete; */
 
-  static void _copy(const RegMask& src, RegMask& dst) {
+  static void _copy(const RegMaskBase& src, RegMaskBase& dst) {
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
     for (unsigned i = 0; i < _RM_SIZE; i++) {
@@ -127,8 +127,8 @@ class RegMask {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
-  RegMask& operator= (const RegMask& rm) {
-    // TODO Assert that the src RegMask can actually fit.
+  RegMaskBase& operator= (const RegMaskBase& rm) {
+    // TODO Assert that the src RegMaskBase can actually fit.
     _copy(rm,*this);
     return *this;
   }
@@ -243,7 +243,7 @@ class RegMask {
   static int num_registers(uint ireg, LRG &lrg);
 
   // Fast overlap test.  Non-zero if any registers in common.
-  bool overlap(const RegMask &rm) const {
+  bool overlap(const RegMaskBase &rm) const {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -296,7 +296,7 @@ class RegMask {
   }
 
   // OR 'rm' into 'this'
-  void OR(const RegMask &rm) {
+  void OR(const RegMaskBase &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // OR widens the live range
     if (_lwm > rm._lwm) _lwm = rm._lwm;
@@ -308,7 +308,7 @@ class RegMask {
   }
 
   // AND 'rm' into 'this'
-  void AND(const RegMask &rm) {
+  void AND(const RegMaskBase &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Do not evaluate words outside the current watermark range, as they are
     // already zero and an &= would not change that
@@ -322,7 +322,7 @@ class RegMask {
   }
 
   // Subtract 'rm' from 'this'
-  void SUBTRACT(const RegMask &rm) {
+  void SUBTRACT(const RegMaskBase &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -338,9 +338,6 @@ class RegMask {
   void print() const { dump(); }
   void dump(outputStream *st = tty) const; // Print a mask
 #endif
-
-  static const RegMaskStatic Empty;   // Common empty mask
-  static const RegMaskStatic All;     // Common all mask
 
   static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
     // NOTE: MAX2(1U,size) in computation reflects the usage of the last
@@ -359,9 +356,9 @@ class RegMaskIterator {
   uintptr_t _current_bits;
   unsigned int _next_index;
   OptoReg::Name _reg;
-  const RegMask& _rm;
+  const RegMaskBase& _rm;
  public:
-  RegMaskIterator(const RegMask& rm) : _current_bits(0), _next_index(rm._lwm), _reg(OptoReg::Bad), _rm(rm) {
+  RegMaskIterator(const RegMaskBase& rm) : _current_bits(0), _next_index(rm._lwm), _reg(OptoReg::Bad), _rm(rm) {
     // Calculate the first element
     next();
   }
@@ -405,7 +402,7 @@ class RegMaskIterator {
         unsigned int next_bit = find_lowest_bit(_current_bits);
         assert(((_current_bits >> next_bit) & 0x1) == 1, "lowest bit must be set after shift");
         _current_bits = (_current_bits >> next_bit) - 1;
-        _reg = OptoReg::Name(((_next_index - 1) << RegMask::_LogWordBits) + next_bit);
+        _reg = OptoReg::Name(((_next_index - 1) << RegMaskBase::_LogWordBits) + next_bit);
         return r;
       }
     }
@@ -416,7 +413,7 @@ class RegMaskIterator {
   }
 };
 
-class RegMaskStatic : public RegMask {
+class RegMask : public RegMaskBase {
 
   // Array of Register Mask bits.  This array is large enough to cover
   // all the machine registers and all parameters that need to be passed
@@ -429,11 +426,11 @@ class RegMaskStatic : public RegMask {
 
   // A constructor only used by the ADLC output.  All mask fields are filled
   // in directly.  Calls to this look something like RM(1,2,3,4);
-  RegMaskStatic(
+  RegMask(
 #   define BODY(I) int a##I,
     FORALL_BODY
 #   undef BODY
-    int dummy = 0) : RegMask(_RM_STORAGE) {
+    int dummy = 0) : RegMaskBase(_RM_STORAGE) {
 #if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
 #   define BODY(I) _RM_I[I] = a##I;
 #else
@@ -451,35 +448,33 @@ class RegMaskStatic : public RegMask {
 
   // Handy copying constructor
   // TODO Remove, probably. Dead code currently?
-  RegMaskStatic(RegMask *rm) : RegMask(_RM_STORAGE) {
+  RegMask(RegMask *rm) : RegMaskBase(_RM_STORAGE) {
     _copy(*rm,*this);
   }
 
   // Construct an empty mask
-  RegMaskStatic() : RegMask(_RM_STORAGE), _RM_STORAGE() {
+  RegMask() : RegMaskBase(_RM_STORAGE), _RM_STORAGE() {
     assert(valid_watermarks(), "post-condition");
   }
 
   // Construct a mask with a single bit
-  RegMaskStatic(OptoReg::Name reg) : RegMaskStatic() {
+  RegMask(OptoReg::Name reg) : RegMask() {
     Insert(reg);
   }
 
-  RegMaskStatic(const RegMask& rm) : RegMask(_RM_STORAGE) {
-    // TODO Assert that the src RegMask can actually fit.
+  RegMask(const RegMask& rm) : RegMaskBase(_RM_STORAGE) {
     _copy(rm,*this);
   }
 
-  RegMaskStatic(const RegMaskStatic& rm) : RegMask(_RM_STORAGE) {
-    _copy(rm,*this);
-  }
-
-  RegMaskStatic& operator= (const RegMaskStatic& rm) {
+  RegMask& operator= (const RegMask& rm) {
     _copy(rm,*this);
     return *this;
   }
 
-  ~RegMaskStatic() {};
+  ~RegMask() {};
+
+  static const RegMask Empty;   // Common empty mask
+  static const RegMask All;     // Common all mask
 
 };
 

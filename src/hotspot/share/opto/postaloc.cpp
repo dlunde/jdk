@@ -768,7 +768,7 @@ void PhaseChaitin::post_allocate_copy_removal() {
             !lrgs(lidx).mask().Member(nreg_lo) ) { // Nearly always adjacent
           // Sparc occasionally has non-adjacent pairs.
           // Find the actual other value
-          RegMaskStatic tmp = lrgs(lidx).mask();
+          RegMask tmp = lrgs(lidx).mask();
           tmp.Remove(nreg);
           nreg_lo = tmp.find_first_elem();
         }

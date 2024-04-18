@@ -48,13 +48,13 @@
 OptoReg::Name OptoReg::c_frame_pointer;
 
 const RegMask *Matcher::idealreg2regmask[_last_machine_leaf];
-RegMaskStatic Matcher::mreg2regmask[_last_Mach_Reg];
-RegMaskStatic Matcher::caller_save_regmask;
-RegMaskStatic Matcher::caller_save_regmask_exclude_soe;
-RegMaskStatic Matcher::mh_caller_save_regmask;
-RegMaskStatic Matcher::mh_caller_save_regmask_exclude_soe;
-RegMaskStatic Matcher::STACK_ONLY_mask;
-RegMaskStatic Matcher::c_frame_ptr_mask;
+RegMask Matcher::mreg2regmask[_last_Mach_Reg];
+RegMask Matcher::caller_save_regmask;
+RegMask Matcher::caller_save_regmask_exclude_soe;
+RegMask Matcher::mh_caller_save_regmask;
+RegMask Matcher::mh_caller_save_regmask_exclude_soe;
+RegMask Matcher::STACK_ONLY_mask;
+RegMask Matcher::c_frame_ptr_mask;
 const uint Matcher::_begin_rematerialize = _BEGIN_REMATERIALIZE;
 const uint Matcher::_end_rematerialize   = _END_REMATERIALIZE;
 
@@ -211,7 +211,7 @@ void Matcher::match( ) {
     OptoRegPair regs = return_value(ireg);
 
     // And mask for same
-    _return_value_mask = RegMaskStatic(regs.first());
+    _return_value_mask = RegMask(regs.first());
     if( OptoReg::is_valid(regs.second()) )
       _return_value_mask.Insert(regs.second());
   }
@@ -227,8 +227,8 @@ void Matcher::match( ) {
   BasicType *sig_bt        = NEW_RESOURCE_ARRAY( BasicType, argcnt );
   VMRegPair *vm_parm_regs  = NEW_RESOURCE_ARRAY( VMRegPair, argcnt );
   _parm_regs               = NEW_RESOURCE_ARRAY( OptoRegPair, argcnt );
-  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMaskStatic, argcnt );
-  new(_calling_convention_mask) RegMaskStatic[argcnt];
+  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMask, argcnt );
+  new(_calling_convention_mask) RegMask[argcnt];
   uint i;
   for( i = 0; i<argcnt; i++ ) {
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();
@@ -441,8 +441,8 @@ void Matcher::match( ) {
 // course gives them a mask).
 
 static RegMask *init_input_masks( uint size, RegMask &ret_adr, RegMask &fp ) {
-  RegMask *rms = NEW_RESOURCE_ARRAY( RegMaskStatic, size );
-  new(rms) RegMaskStatic[size];
+  RegMask *rms = NEW_RESOURCE_ARRAY( RegMask, size );
+  new(rms) RegMask[size];
   // Do all the pre-defined register masks
   rms[TypeFunc::Control  ] = RegMask::Empty;
   rms[TypeFunc::I_O      ] = RegMask::Empty;
@@ -478,11 +478,11 @@ int Matcher::scalable_predicate_reg_slots() {
 void Matcher::init_first_stack_mask() {
 
   // Allocate storage for spill masks as masks for the appropriate load type.
-  RegMask *rms = (RegMask*)C->comp_arena()->AmallocWords(sizeof(RegMaskStatic) * NOF_STACK_MASKS);
+  RegMask *rms = (RegMask*)C->comp_arena()->AmallocWords(sizeof(RegMask) * NOF_STACK_MASKS);
 
   // Initialize empty placeholder masks into the newly allocated arena
   for (int i = 0; i < NOF_STACK_MASKS; i++) {
-    new (rms + i) RegMaskStatic();
+    new (rms + i) RegMask();
   }
 
   idealreg2spillmask  [Op_RegN] = &rms[0];
@@ -552,11 +552,11 @@ void Matcher::init_first_stack_mask() {
   C->FIRST_STACK_mask().set_AllStack();
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
-  RegMaskStatic aligned_stack_mask(C->FIRST_STACK_mask());
+  RegMask aligned_stack_mask = C->FIRST_STACK_mask();
   // Keep spill masks aligned.
   aligned_stack_mask.clear_to_pairs();
   assert(aligned_stack_mask.is_AllStack(), "should be infinite stack");
-  RegMaskStatic scalable_stack_mask(aligned_stack_mask);
+  RegMask scalable_stack_mask = aligned_stack_mask;
 
   *idealreg2spillmask[Op_RegP] = *idealreg2regmask[Op_RegP];
 #ifdef _LP64
@@ -1003,7 +1003,7 @@ void Matcher::init_spill_mask( Node *ret ) {
 
   // Also exclude the register we use to save the SP for MethodHandle
   // invokes to from the corresponding MH debug masks
-  const RegMaskStatic sp_save_mask = method_handle_invoke_SP_save_mask();
+  const RegMask sp_save_mask = method_handle_invoke_SP_save_mask();
   mh_caller_save_regmask.OR(sp_save_mask);
   mh_caller_save_regmask_exclude_soe.OR(sp_save_mask);
 
@@ -1343,9 +1343,9 @@ MachNode *Matcher::match_sfpt( SafePointNode *sfpt ) {
   msfpt->set_adr_type(sfpt->adr_type());
 
   // Allocate a private array of RegMasks.  These RegMasks are not shared.
-  msfpt->_in_rms = NEW_RESOURCE_ARRAY( RegMaskStatic, cnt );
+  msfpt->_in_rms = NEW_RESOURCE_ARRAY( RegMask, cnt );
   // Empty them all.
-  for (uint i = 0; i < cnt; i++) ::new (&(msfpt->_in_rms[i])) RegMaskStatic();
+  for (uint i = 0; i < cnt; i++) ::new (&(msfpt->_in_rms[i])) RegMask();
 
   // Do all the pre-defined non-Empty register masks
   msfpt->_in_rms[TypeFunc::ReturnAdr] = _return_addr_mask;

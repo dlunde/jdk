@@ -1378,7 +1378,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
   return false;
 }
 
-static OptoReg::Name find_first_set(LRG &lrg, RegMask &mask, int chunk) {
+static OptoReg::Name find_first_set(LRG &lrg, RegMask mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
 
@@ -1453,7 +1453,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
         return reg;
     } else if( chunk == 0 ) {
       // Choose a color which is legal for him
-      RegMaskStatic tempmask(lrg.mask());
+      RegMask tempmask = lrg.mask();
       tempmask.AND(lrgs(copy_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
       OptoReg::Name reg = find_first_set(lrg, tempmask, chunk);
@@ -1465,8 +1465,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
   // If no bias info exists, just go with the register selection ordering
   if (lrg._is_vector || lrg.num_regs() == 2 || lrg.is_scalable()) {
     // Find an aligned set
-    RegMaskStatic tempmask(lrg.mask());
-    return OptoReg::add(find_first_set(lrg, tempmask, chunk), chunk);
+    return OptoReg::add(find_first_set(lrg, lrg.mask(), chunk), chunk);
   }
 
   // CNC - Fun hack.  Alternate 1st and 2nd selection.  Enables post-allocate
@@ -1546,7 +1545,7 @@ uint PhaseChaitin::Select( ) {
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
-    debug_only(RegMaskStatic orig_mask(lrg->mask());)
+    debug_only(RegMask orig_mask = lrg->mask();)
 
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
@@ -1564,7 +1563,7 @@ uint PhaseChaitin::Select( ) {
         if (nreg >= chunk && nreg < chunk + RegMask::CHUNK_SIZE) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();
-          RegMaskStatic rm(lrg->mask());
+          RegMask rm = lrg->mask();
 #endif
           lrg->SUBTRACT(nlrg.mask());
 #ifndef PRODUCT
@@ -1609,7 +1608,7 @@ uint PhaseChaitin::Select( ) {
     // Did we get a color?
     else if( OptoReg::is_valid(reg)) {
 #ifndef PRODUCT
-      RegMaskStatic avail_rm(lrg->mask());
+      RegMask avail_rm = lrg->mask();
 #endif
 
       // Record selected register

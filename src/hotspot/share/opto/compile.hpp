@@ -556,7 +556,7 @@ private:
   int                   _inner_loops;           // Number of inner loops in the method
   Matcher*              _matcher;               // Engine to map ideal to machine instructions
   PhaseRegAlloc*        _regalloc;              // Results of register allocation.
-  RegMaskStatic         _FIRST_STACK_mask;      // All stack slots usable for spills (depends on frame layout)
+  RegMask               _FIRST_STACK_mask;      // All stack slots usable for spills (depends on frame layout)
   Arena*                _indexSet_arena;        // control IndexSet allocation within PhaseChaitin
   void*                 _indexSet_free_block_list; // free list of IndexSet bit blocks
   int                   _interpreter_frame_size;

@@ -106,7 +106,7 @@ void ArchDesc::buildMachRegisterNumbers(FILE *fp_hpp) {
     fprintf(fp_hpp, "BODY(%d) ",i);
   fprintf(fp_hpp, "\n\n");
 
-  fprintf(fp_hpp,"class RegMask;\n");//
+  fprintf(fp_hpp,"class RegMask;\n");
   // All RegMasks are declared "extern const ..." in ad_<arch>.hpp
   // fprintf(fp_hpp,"extern RegMask STACK_OR_STACK_SLOTS_mask;\n\n");
 }
