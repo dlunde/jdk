@@ -52,12 +52,12 @@ static void contains_expected_num_of_registers(const RegMask& rm, unsigned int e
 }
 
 TEST_VM(RegMask, empty) {
-  RegMask rm;
+  RegMaskStatic rm;
   contains_expected_num_of_registers(rm, 0);
 }
 
 TEST_VM(RegMask, iteration) {
-  RegMask rm;
+  RegMaskStatic rm;
   rm.Insert(30);
   rm.Insert(31);
   rm.Insert(32);
@@ -81,7 +81,7 @@ TEST_VM(RegMask, iteration) {
 
 TEST_VM(RegMask, Set_ALL) {
   // Check that Set_All doesn't add bits outside of CHUNK_SIZE
-  RegMask rm;
+  RegMaskStatic rm;
   rm.Set_All();
   ASSERT_TRUE(rm.Size() == RegMask::CHUNK_SIZE);
   ASSERT_TRUE(rm.is_NotEmpty());
@@ -92,14 +92,14 @@ TEST_VM(RegMask, Set_ALL) {
 
 TEST_VM(RegMask, Clear) {
   // Check that Clear doesn't leave any stray bits
-  RegMask rm;
+  RegMaskStatic rm;
   rm.Set_All();
   rm.Clear();
   contains_expected_num_of_registers(rm, 0);
 }
 
 TEST_VM(RegMask, AND) {
-  RegMask rm1;
+  RegMaskStatic rm1;
   rm1.Insert(OptoReg::Name(1));
   contains_expected_num_of_registers(rm1, 1);
   ASSERT_TRUE(rm1.Member(OptoReg::Name(1)));
@@ -107,14 +107,14 @@ TEST_VM(RegMask, AND) {
   rm1.AND(rm1);
   contains_expected_num_of_registers(rm1, 1);
 
-  RegMask rm2;
+  RegMaskStatic rm2;
   rm1.AND(rm2);
   contains_expected_num_of_registers(rm1, 0);
   contains_expected_num_of_registers(rm2, 0);
 }
 
 TEST_VM(RegMask, OR) {
-  RegMask rm1;
+  RegMaskStatic rm1;
   rm1.Insert(OptoReg::Name(1));
   contains_expected_num_of_registers(rm1, 1);
   ASSERT_TRUE(rm1.Member(OptoReg::Name(1)));
@@ -122,15 +122,15 @@ TEST_VM(RegMask, OR) {
   rm1.OR(rm1);
   contains_expected_num_of_registers(rm1, 1);
 
-  RegMask rm2;
+  RegMaskStatic rm2;
   rm1.OR(rm2);
   contains_expected_num_of_registers(rm1, 1);
   contains_expected_num_of_registers(rm2, 0);
 }
 
 TEST_VM(RegMask, SUBTRACT) {
-  RegMask rm1;
-  RegMask rm2;
+  RegMaskStatic rm1;
+  RegMaskStatic rm2;
 
   rm2.Set_All();
   for (int i = 17; i < RegMask::CHUNK_SIZE; i++) {
@@ -143,7 +143,7 @@ TEST_VM(RegMask, SUBTRACT) {
 }
 
 TEST_VM(RegMask, is_bound1) {
-  RegMask rm;
+  RegMaskStatic rm;
   ASSERT_FALSE(rm.is_bound1());
   for (int i = 0; i < RegMask::CHUNK_SIZE - 1; i++) {
     rm.Insert(i);
@@ -158,7 +158,7 @@ TEST_VM(RegMask, is_bound1) {
 }
 
 TEST_VM(RegMask, is_bound_pair) {
-  RegMask rm;
+  RegMaskStatic rm;
   ASSERT_TRUE(rm.is_bound_pair());
   for (int i = 0; i < RegMask::CHUNK_SIZE - 2; i++) {
     rm.Insert(i);
@@ -177,7 +177,7 @@ TEST_VM(RegMask, is_bound_pair) {
 }
 
 TEST_VM(RegMask, is_bound_set) {
-  RegMask rm;
+  RegMaskStatic rm;
   for (int size = 1; size <= 16; size++) {
     ASSERT_TRUE(rm.is_bound_set(size));
     for (int i = 0; i < RegMask::CHUNK_SIZE - size; i++) {

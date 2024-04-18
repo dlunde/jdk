@@ -742,7 +742,7 @@ public:
   MachProjNode( Node *multi, uint con, const RegMask &out, uint ideal_reg ) : ProjNode(multi,con), _rout(out), _ideal_reg(ideal_reg) {
     init_class_id(Class_MachProj);
   }
-  RegMask _rout;
+  RegMaskStatic _rout;
   const uint  _ideal_reg;
   enum projType {
     unmatched_proj = 0,         // Projs for Control, I/O, memory not matched

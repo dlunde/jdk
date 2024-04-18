@@ -49,9 +49,9 @@ void OptoReg::dump(int r, outputStream *st) {
 
 
 //=============================================================================
-const RegMask RegMask::Empty;
+const RegMaskStatic RegMask::Empty;
 
-const RegMask RegMask::All(
+const RegMaskStatic RegMask::All(
 # define BODY(I) -1,
   FORALL_BODY
 # undef BODY

@@ -30,9 +30,9 @@
 #include "utilities/count_leading_zeros.hpp"
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
-#include "memory/allocation.hpp"
 
 class LRG;
+class RegMaskStatic;
 
 //-------------Non-zero bit search methods used by RegMask---------------------
 // Find lowest 1, undefined if empty/0
@@ -59,6 +59,7 @@ static unsigned int find_highest_bit(uintptr_t mask) {
 class RegMask {
 
   friend class RegMaskIterator;
+  friend class RegMaskStatic;
 
   // The RM_SIZE is aligned to 64-bit - assert that this holds
   LP64_ONLY(STATIC_ASSERT(is_aligned(RM_SIZE, 2)));
@@ -74,18 +75,9 @@ class RegMask {
     // on the stack (stack registers) up to some interesting limit.  Methods
     // that need more parameters will NOT be compiled.  On Intel, the limit
     // is something like 90+ parameters.
-    int       _RM_I[RM_SIZE];
-    uintptr_t _RM_UP[_RM_SIZE];
+    int*       _RM_I;
+    uintptr_t* _RM_UP;
   };
-
-  union {
-    int       *_RM_I_EXT;
-    uintptr_t *_RM_UP_EXT = nullptr;
-  };
-
-  // Infinite stack flag. Indicates that all values beyond the high water mark
-  // are set.
-  bool infinite = false;
 
   // The low and high water marks represents the lowest and highest word
   // that might contain set register mask bits, respectively. We guarantee
@@ -94,8 +86,21 @@ class RegMask {
   unsigned int _lwm;
   unsigned int _hwm;
 
-  // Arena used for growing the register mask (rarely needed)
-  Arena* _arena = nullptr;
+  RegMask(int *RM_I) : _RM_I(RM_I), _lwm(_RM_MAX), _hwm(0) {}
+  RegMask(uintptr_t *RM_UP) : _RM_UP(RM_UP), _lwm(_RM_MAX), _hwm(0) {}
+
+  RegMask() = delete;
+  RegMask(const RegMask& rm) = delete;
+  /* RegMask(const RegMask&& rm) = delete; */
+
+  static void _copy(const RegMask& src, RegMask& dst) {
+    dst._hwm = src._hwm;
+    dst._lwm = src._lwm;
+    for (unsigned i = 0; i < _RM_SIZE; i++) {
+      dst._RM_UP[i] = src._RM_UP[i];
+    }
+    assert(dst.valid_watermarks(), "post-condition");
+  }
 
  public:
   enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
@@ -122,57 +127,9 @@ class RegMask {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
-  // A constructor only used by the ADLC output.  All mask fields are filled
-  // in directly.  Calls to this look something like RM(1,2,3,4);
-  RegMask(
-#   define BODY(I) int a##I,
-    FORALL_BODY
-#   undef BODY
-    int dummy = 0) {
-#if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
-#   define BODY(I) _RM_I[I] = a##I;
-#else
-    // We need to swap ints.
-#   define BODY(I) _RM_I[I ^ 1] = a##I;
-#endif
-    FORALL_BODY
-#   undef BODY
-    _lwm = 0;
-    _hwm = _RM_MAX;
-    while (_hwm > 0      && _RM_UP[_hwm] == 0) _hwm--;
-    while ((_lwm < _hwm) && _RM_UP[_lwm] == 0) _lwm++;
-    assert(valid_watermarks(), "post-condition");
-  }
-
-  // Construct an empty mask
-  RegMask(Arena* arena = nullptr) : _RM_UP(), _lwm(_RM_MAX), _hwm(0) {
-    _arena = arena;
-    assert(valid_watermarks(), "post-condition");
-  }
-
-  // Construct a mask with a single bit
-  RegMask(OptoReg::Name reg, Arena* arena = nullptr) : RegMask(arena) {
-    Insert(reg);
-  }
-
-  ~RegMask() {}
-  RegMask(const RegMask &rm) {
-    assert(rm._RM_UP_EXT == nullptr, "copy constructor only allowed for non-extended RegMask");
-    _hwm = rm._hwm;
-    _lwm = rm._lwm;
-    for (unsigned i = 0; i < _RM_SIZE; i++) {
-      _RM_UP[i] = rm._RM_UP[i];
-    }
-    assert(valid_watermarks(), "post-condition");
-  }
-  RegMask& operator= (const RegMask &rm) {
-    assert(rm._RM_UP_EXT == nullptr && _RM_UP_EXT == nullptr, "copy only allowed between non-extended RegMasks");
-    _hwm = rm._hwm;
-    _lwm = rm._lwm;
-    for (unsigned i = 0; i < _RM_SIZE; i++) {
-      _RM_UP[i] = rm._RM_UP[i];
-    }
-    assert(valid_watermarks(), "post-condition");
+  RegMask& operator= (const RegMask& rm) {
+    // TODO Assert that the src RegMask can actually fit.
+    _copy(rm,*this);
     return *this;
   }
 
@@ -382,8 +339,8 @@ class RegMask {
   void dump(outputStream *st = tty) const; // Print a mask
 #endif
 
-  static const RegMask Empty;   // Common empty mask
-  static const RegMask All;     // Common all mask
+  static const RegMaskStatic Empty;   // Common empty mask
+  static const RegMaskStatic All;     // Common all mask
 
   static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
     // NOTE: MAX2(1U,size) in computation reflects the usage of the last
@@ -457,6 +414,73 @@ class RegMaskIterator {
     _reg = OptoReg::Name(OptoReg::Bad);
     return r;
   }
+};
+
+class RegMaskStatic : public RegMask {
+
+  // Array of Register Mask bits.  This array is large enough to cover
+  // all the machine registers and all parameters that need to be passed
+  // on the stack (stack registers) up to some interesting limit.  Methods
+  // that need more parameters will NOT be compiled.  On Intel, the limit
+  // is something like 90+ parameters.
+  int _RM_STORAGE[RM_SIZE];
+
+  public:
+
+  // A constructor only used by the ADLC output.  All mask fields are filled
+  // in directly.  Calls to this look something like RM(1,2,3,4);
+  RegMaskStatic(
+#   define BODY(I) int a##I,
+    FORALL_BODY
+#   undef BODY
+    int dummy = 0) : RegMask(_RM_STORAGE) {
+#if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
+#   define BODY(I) _RM_I[I] = a##I;
+#else
+    // We need to swap ints.
+#   define BODY(I) _RM_I[I ^ 1] = a##I;
+#endif
+    FORALL_BODY
+#   undef BODY
+    _lwm = 0;
+    _hwm = _RM_MAX;
+    while (_hwm > 0      && _RM_UP[_hwm] == 0) _hwm--;
+    while ((_lwm < _hwm) && _RM_UP[_lwm] == 0) _lwm++;
+    assert(valid_watermarks(), "post-condition");
+  }
+
+  // Handy copying constructor
+  // TODO Remove, probably. Dead code currently?
+  RegMaskStatic(RegMask *rm) : RegMask(_RM_STORAGE) {
+    _copy(*rm,*this);
+  }
+
+  // Construct an empty mask
+  RegMaskStatic() : RegMask(_RM_STORAGE), _RM_STORAGE() {
+    assert(valid_watermarks(), "post-condition");
+  }
+
+  // Construct a mask with a single bit
+  RegMaskStatic(OptoReg::Name reg) : RegMaskStatic() {
+    Insert(reg);
+  }
+
+  RegMaskStatic(const RegMask& rm) : RegMask(_RM_STORAGE) {
+    // TODO Assert that the src RegMask can actually fit.
+    _copy(rm,*this);
+  }
+
+  RegMaskStatic(const RegMaskStatic& rm) : RegMask(_RM_STORAGE) {
+    _copy(rm,*this);
+  }
+
+  RegMaskStatic& operator= (const RegMaskStatic& rm) {
+    _copy(rm,*this);
+    return *this;
+  }
+
+  ~RegMaskStatic() {};
+
 };
 
 // Do not use this constant directly in client code!

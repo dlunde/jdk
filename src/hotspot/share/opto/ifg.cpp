@@ -639,7 +639,7 @@ bool PhaseChaitin::remove_node_if_not_used(Block* b, uint location, Node* n, uin
  * block. If we find a low to high transition, we record it.
  */
 void PhaseChaitin::check_for_high_pressure_transition_at_fatproj(uint& block_reg_pressure, uint location, LRG& lrg, Pressure& pressure, const int op_regtype) {
-  RegMask mask_tmp = lrg.mask();
+  RegMaskStatic mask_tmp(lrg.mask());
   mask_tmp.AND(*Matcher::idealreg2regmask[op_regtype]);
   pressure.check_pressure_at_fatproj(location, mask_tmp);
 }
@@ -711,7 +711,7 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
     }
 
     // Remove bound register(s) from 'l's choices
-    RegMask old = interfering_lrg.mask();
+    RegMaskStatic old(interfering_lrg.mask());
     uint old_size = interfering_lrg.mask_size();
 
     // Remove the bits from LRG 'rm' from LRG 'l' so 'l' no
@@ -720,7 +720,7 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
     assert(!interfering_lrg._is_vector || !interfering_lrg._fat_proj, "sanity");
 
     if (interfering_lrg.num_regs() > 1 && !interfering_lrg._fat_proj) {
-      RegMask r2mask = rm;
+      RegMaskStatic r2mask(rm);
       // Leave only aligned set of bits.
       r2mask.smear_to_sets(interfering_lrg.num_regs());
       // It includes vector case.

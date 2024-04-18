@@ -694,7 +694,7 @@ bool PhaseConservativeCoalesce::copy_copy(Node *dst_copy, Node *src_copy, Block 
 
   // Check for compatibility of the 2 live ranges by
   // intersecting their allowed register sets.
-  RegMask rm = lrgs(lr1).mask();
+  RegMaskStatic rm(lrgs(lr1).mask());
   rm.AND(lrgs(lr2).mask());
   // Number of bits free
   uint rm_size = rm.Size();
