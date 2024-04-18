@@ -77,9 +77,15 @@ class RegMaskBase {
     uintptr_t* _RM_UP;
   };
 
+  // Size in words
   unsigned int _rm_size;
+
+  // The maximum word index
   unsigned int _rm_max() const { return _rm_size - 1U; }
 
+  // We can offset register masks to present different views of the register
+  // space. We define the mask not to contain registers before _offset (i.e.,
+  // they are zero).
   unsigned int _offset;
 
   // The low and high water marks represents the lowest and highest word
@@ -89,9 +95,9 @@ class RegMaskBase {
   unsigned int _lwm;
   unsigned int _hwm;
 
-  RegMaskBase(int _rm_size)
-    : _rm_size(_rm_size), _offset(0),
-      _lwm(_rm_size - 1U), _hwm(0) {}
+  RegMaskBase(int _rm_size, int _offset = 0)
+    : _rm_size(_rm_size), _offset(_offset),
+      _lwm(_rm_max()), _hwm(0) {}
 
   RegMaskBase() = delete;
   RegMaskBase(const RegMaskBase& rm) = delete;
@@ -138,11 +144,14 @@ class RegMaskBase {
 
   // Check for register being in mask
   bool Member(OptoReg::Name reg) const {
-    assert((unsigned)reg < _rm_size * BitsPerWord, "");
-
-    unsigned r = (unsigned)reg;
+    int reg_offset = reg - _offset;
+    if(reg_offset < 0) { return false; }
+    unsigned r = (unsigned)reg_offset;
+    assert(r < _rm_size * BitsPerWord, "");
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
+
+  void set_offset(int offset) { _offset = offset; }
 
   // The last bit in the register mask indicates that the mask should repeat
   // indefinitely with ONE bits.  Returns TRUE if mask is infinite or
@@ -171,7 +180,7 @@ class RegMaskBase {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       uintptr_t bits = _RM_UP[i];
       if (bits) {
-        return OptoReg::Name((i << _LogWordBits) + find_lowest_bit(bits));
+        return OptoReg::Name(_offset + (i << _LogWordBits) + find_lowest_bit(bits));
       }
     }
     return OptoReg::Name(OptoReg::Bad);
@@ -185,7 +194,7 @@ class RegMaskBase {
     while (i > _lwm) {
       uintptr_t bits = _RM_UP[--i];
       if (bits) {
-        return OptoReg::Name((i << _LogWordBits) + find_highest_bit(bits));
+        return OptoReg::Name(_offset + (i << _LogWordBits) + find_highest_bit(bits));
       }
     }
     return OptoReg::Name(OptoReg::Bad);
@@ -247,6 +256,8 @@ class RegMaskBase {
 
   // Fast overlap test.  Non-zero if any registers in common.
   bool overlap(const RegMaskBase &rm) const {
+    assert(_offset == rm._offset, "");
+    assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -282,9 +293,11 @@ class RegMaskBase {
   void Insert(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
-    assert((unsigned)reg < _rm_size * BitsPerWord, "sanity");
+    int reg_offset = reg - _offset;
+    assert(reg_offset >= 0, "offset does not allow insertion");
+    unsigned r = (unsigned)reg_offset;
+    assert(r < _rm_size * BitsPerWord, "sanity");
     assert(valid_watermarks(), "pre-condition");
-    unsigned r = (unsigned)reg;
     unsigned index = r >> _LogWordBits;
     if (index > _hwm) _hwm = index;
     if (index < _lwm) _lwm = index;
@@ -294,13 +307,17 @@ class RegMaskBase {
 
   // Remove register from mask
   void Remove(OptoReg::Name reg) {
-    assert((unsigned)reg < _rm_size * BitsPerWord, "");
-    unsigned r = (unsigned)reg;
+    int reg_offset = reg - _offset;
+    assert(reg_offset >= 0, "offset does not allow insertion");
+    unsigned r = (unsigned)reg_offset;
+    assert(r < _rm_size * BitsPerWord, "");
     _RM_UP[r >> _LogWordBits] &= ~(uintptr_t(1) << (r & _WordBitMask));
   }
 
   // OR 'rm' into 'this'
   void OR(const RegMaskBase &rm) {
+    assert(_offset == rm._offset, "");
+    assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // OR widens the live range
     if (_lwm > rm._lwm) _lwm = rm._lwm;
@@ -313,6 +330,8 @@ class RegMaskBase {
 
   // AND 'rm' into 'this'
   void AND(const RegMaskBase &rm) {
+    assert(_offset == rm._offset, "");
+    assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Do not evaluate words outside the current watermark range, as they are
     // already zero and an &= would not change that
@@ -327,6 +346,8 @@ class RegMaskBase {
 
   // Subtract 'rm' from 'this'
   void SUBTRACT(const RegMaskBase &rm) {
+    assert(_offset == rm._offset, "");
+    assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -396,7 +417,7 @@ class RegMaskIterator {
         unsigned int next_bit = find_lowest_bit(_current_bits);
         assert(((_current_bits >> next_bit) & 0x1) == 1, "lowest bit must be set after shift");
         _current_bits = (_current_bits >> next_bit) - 1;
-        _reg = OptoReg::Name(((_next_index - 1) << RegMaskBase::_LogWordBits) + next_bit);
+        _reg = OptoReg::Name(_rm._offset + ((_next_index - 1) << RegMaskBase::_LogWordBits) + next_bit);
         return r;
       }
     }

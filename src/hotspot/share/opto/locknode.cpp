@@ -44,11 +44,12 @@ BoxLockNode::BoxLockNode( int slot ) : Node( Compile::current()->root() ),
   init_class_id(Class_BoxLock);
   init_flags(Flag_rematerialize);
   OptoReg::Name reg = OptoReg::stack2reg(_slot);
-  if (!RegMask::can_represent(reg, Compile::current()->sync_stack_slots())) {
-    Compile::current()->record_method_not_compilable("must be able to represent all monitor slots in reg mask");
-    return;
-  }
-  _inmask.Insert(reg);
+  _inmask.set_offset(RegMask::CHUNK_SIZE * (reg / RegMask::CHUNK_SIZE));
+  /* if (!RegMask::can_represent(reg, Compile::current()->sync_stack_slots())) { */
+  /*   Compile::current()->record_method_not_compilable("must be able to represent all monitor slots in reg mask"); */
+  /*   return; */
+  /* } */
+  _inmask.Insert(reg % RegMask::CHUNK_SIZE);
 }
 
 uint BoxLockNode::hash() const {
