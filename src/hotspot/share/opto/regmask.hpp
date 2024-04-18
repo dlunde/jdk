@@ -30,6 +30,7 @@
 #include "utilities/count_leading_zeros.hpp"
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "memory/resourceArea.hpp"
 
 class LRG;
 class RegMask;
@@ -60,12 +61,16 @@ class RegMaskBase {
 
   friend class RegMaskIterator;
   friend class RegMask;
+  friend class RegMaskGrowable;
 
   // The RM_SIZE is aligned to 64-bit - assert that this holds
   LP64_ONLY(STATIC_ASSERT(is_aligned(RM_SIZE, 2)));
 
   static const unsigned int _WordBitMask = BitsPerWord - 1U;
   static const unsigned int _LogWordBits = LogBitsPerWord;
+  static const unsigned int _RM_SIZE = LP64_ONLY(RM_SIZE >> 1) NOT_LP64(RM_SIZE);
+  static const unsigned int _RM_MAX = _RM_SIZE - 1U;
+
 
   union {
     // Array of Register Mask bits.  This array is large enough to cover
@@ -437,8 +442,6 @@ class RegMask : public RegMaskBase {
   // is something like 90+ parameters.
   int _RM_STORAGE[RM_SIZE];
 
-  static const unsigned int _RM_SIZE = LP64_ONLY(RM_SIZE >> 1) NOT_LP64(RM_SIZE);
-
   public:
   enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
@@ -459,7 +462,7 @@ class RegMask : public RegMaskBase {
     FORALL_BODY
 #   undef BODY
     _lwm = 0;
-    _hwm = _rm_max();
+    _hwm = _RM_MAX;
     while (_hwm > 0      && _RM_UP[_hwm] == 0) _hwm--;
     while ((_lwm < _hwm) && _RM_UP[_lwm] == 0) _lwm++;
     assert(valid_watermarks(), "post-condition");
@@ -500,6 +503,26 @@ class RegMask : public RegMaskBase {
     // NOTE: SlotsPerVecZ in computation reflects the need
     //       to keep mask aligned for largest value (VecZ).
     return can_represent(reg, SlotsPerVecZ);
+  }
+
+};
+
+class RegMaskGrowable : public RegMaskBase {
+
+  Arena* _arena;
+
+  public:
+
+  RegMaskGrowable() : RegMaskGrowable(Thread::current()->resource_area()) {}
+
+  RegMaskGrowable(Arena* arena) : RegMaskBase(_RM_SIZE), _arena(arena) {
+    _RM_UP = NEW_ARENA_ARRAY(arena, uintptr_t, _RM_SIZE);
+    memset(_RM_UP, 0, sizeof(uintptr_t) * _RM_SIZE);
+  }
+
+  void Insert(OptoReg::Name reg) {
+    // TODO Grow if necessary
+    RegMaskBase::Insert(reg);
   }
 
 };
