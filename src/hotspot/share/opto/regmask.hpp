@@ -119,7 +119,7 @@ class RegMask {
   }
 
  public:
-  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
+  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord }; // TODO Move to private and expose _rm_size instead
 
   // SlotsPerLong is 2, since slots are 32 bits and longs are 64 bits.
   // Also, consider the maximum alignment size for a normally allocated
@@ -521,26 +521,49 @@ class RegMaskGrowable : public RegMask {
 
   Arena* _arena;
 
+  void _grow(unsigned int min_size) {
+    if(min_size > _rm_size) {
+      unsigned int old_size = _rm_size;
+      _rm_size = min_size;
+      _RM_UP = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP, old_size, _rm_size);
+      memset(_RM_UP + old_size, 0, sizeof(uintptr_t) * (_rm_size - old_size));
+    }
+  }
+
   public:
 
   RegMaskGrowable() : RegMaskGrowable(Thread::current()->resource_area()) {}
 
   RegMaskGrowable(Arena* arena) : RegMask(_RM_SIZE), _arena(arena) {
-    _RM_UP = NEW_ARENA_ARRAY(arena, uintptr_t, _RM_SIZE);
+    _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, _RM_SIZE);
     memset(_RM_UP, 0, sizeof(uintptr_t) * _RM_SIZE);
+  }
+
+  RegMaskGrowable(const RegMask& rm)
+    : RegMask(rm._rm_size), _arena(Thread::current()->resource_area()) {
+    _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm._rm_size);
+    _copy(rm,*this);
   }
 
   void Insert(OptoReg::Name reg) {
     assert(_offset == 0, "");
     unsigned index = reg >> _LogWordBits;
     unsigned int min_size = index + 2;
-    if(min_size > _rm_size) {
-      unsigned int old_size = _rm_size;
-      _rm_size = next_power_of_2(min_size);
-      _RM_UP = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP, old_size, _rm_size);
-      memset(_RM_UP + old_size, 0, sizeof(uintptr_t) * (_rm_size - old_size));
-    }
+    min_size = next_power_of_2(min_size);
+    _grow(min_size);
     RegMask::Insert(reg);
+  }
+
+  RegMaskGrowable& operator= (const RegMaskGrowable& rm) {
+    _grow(rm._rm_size);
+    _copy(rm,*this);
+    return *this;
+  }
+
+  RegMaskGrowable& operator= (const RegMask& rm) {
+    _grow(rm._rm_size);
+    _copy(rm,*this);
+    return *this;
   }
 
 };

@@ -742,7 +742,7 @@ public:
   MachProjNode( Node *multi, uint con, const RegMask &out, uint ideal_reg ) : ProjNode(multi,con), _rout(out), _ideal_reg(ideal_reg) {
     init_class_id(Class_MachProj);
   }
-  RegMaskStatic _rout;
+  RegMaskGrowable _rout;
   const uint  _ideal_reg;
   enum projType {
     unmatched_proj = 0,         // Projs for Control, I/O, memory not matched
@@ -812,7 +812,7 @@ public:
 class MachReturnNode : public MachNode {
   virtual uint size_of() const; // Size is bigger
 public:
-  RegMaskStatic *_in_rms;       // Input register masks, set during allocation
+  RegMaskGrowable *_in_rms;     // Input register masks, set during allocation
   ReallocMark _nesting;         // assertion check for reallocations
   const TypePtr* _adr_type;     // memory effects of call or return
   MachReturnNode() : MachNode() {

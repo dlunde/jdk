@@ -405,7 +405,7 @@ public:
   // Return address register.  On Intel it is a stack-slot.  On PowerPC
   // it is the Link register.  On Sparc it is r31?
   virtual OptoReg::Name return_addr() const;
-  RegMaskStatic        _return_addr_mask;
+  RegMaskGrowable        _return_addr_mask;
   // Return value register.  On Intel it is EAX.
   static OptoRegPair   return_value(uint ideal_reg);
   static OptoRegPair c_return_value(uint ideal_reg);

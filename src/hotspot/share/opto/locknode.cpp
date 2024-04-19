@@ -51,11 +51,10 @@ BoxLockNode::BoxLockNode( int slot ) : Node( Compile::current()->root() ),
 
   _inmask.Insert(reg);
 
-  if (!RegMaskStatic::can_represent(reg, Compile::current()->sync_stack_slots())) {
-    assert(false, "");
-    /* Compile::current()->record_method_not_compilable("must be able to represent all monitor slots in reg mask"); */
-    return;
-  }
+  /* if (!RegMaskStatic::can_represent(reg, Compile::current()->sync_stack_slots())) { */
+  /*   /1* Compile::current()->record_method_not_compilable("must be able to represent all monitor slots in reg mask"); *1/ */
+  /*   return; */
+  /* } */
 
 }
 
