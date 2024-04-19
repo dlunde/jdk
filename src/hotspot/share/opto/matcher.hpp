@@ -188,12 +188,12 @@ public:
   void init_spill_mask( Node *ret );
   // Convert machine register number to register mask
   static uint mreg2regmask_max;
-  static RegMask mreg2regmask[];
-  static RegMask STACK_ONLY_mask;
-  static RegMask caller_save_regmask;
-  static RegMask caller_save_regmask_exclude_soe;
-  static RegMask mh_caller_save_regmask;
-  static RegMask mh_caller_save_regmask_exclude_soe;
+  static RegMaskStatic mreg2regmask[];
+  static RegMaskStatic STACK_ONLY_mask;
+  static RegMaskStatic caller_save_regmask;
+  static RegMaskStatic caller_save_regmask_exclude_soe;
+  static RegMaskStatic mh_caller_save_regmask;
+  static RegMaskStatic mh_caller_save_regmask_exclude_soe;
 
   MachNode* mach_null() const { return _mach_null; }
 
@@ -317,7 +317,7 @@ public:
   OptoReg::Name _out_arg_limit;
 
   OptoRegPair *_parm_regs;        // Array of machine registers per argument
-  RegMask *_calling_convention_mask; // Array of RegMasks per argument
+  RegMaskStatic *_calling_convention_mask; // Array of RegMasks per argument
 
   // Does matcher have a match rule for this ideal node?
   static bool has_match_rule(int opcode);
@@ -405,30 +405,30 @@ public:
   // Return address register.  On Intel it is a stack-slot.  On PowerPC
   // it is the Link register.  On Sparc it is r31?
   virtual OptoReg::Name return_addr() const;
-  RegMask              _return_addr_mask;
+  RegMaskStatic        _return_addr_mask;
   // Return value register.  On Intel it is EAX.
   static OptoRegPair   return_value(uint ideal_reg);
   static OptoRegPair c_return_value(uint ideal_reg);
-  RegMask                     _return_value_mask;
+  RegMaskStatic               _return_value_mask;
   // Inline Cache Register
   static OptoReg::Name  inline_cache_reg();
   static int            inline_cache_reg_encode();
 
   // Register for DIVI projection of divmodI
-  static RegMask divI_proj_mask();
+  static RegMaskStatic divI_proj_mask();
   // Register for MODI projection of divmodI
-  static RegMask modI_proj_mask();
+  static RegMaskStatic modI_proj_mask();
 
   // Register for DIVL projection of divmodL
-  static RegMask divL_proj_mask();
+  static RegMaskStatic divL_proj_mask();
   // Register for MODL projection of divmodL
-  static RegMask modL_proj_mask();
+  static RegMaskStatic modL_proj_mask();
 
   // Use hardware DIV instruction when it is faster than
   // a code which use multiply for division by constant.
   static bool use_asm_for_ldiv_by_con( jlong divisor );
 
-  static const RegMask method_handle_invoke_SP_save_mask();
+  static const RegMaskStatic method_handle_invoke_SP_save_mask();
 
   // Java-Interpreter calling convention
   // (what you use when calling between compiled-Java and Interpreted-Java
@@ -450,7 +450,7 @@ public:
   // and so is probably the stack pointer for most machines.  On Intel
   // it is ESP.  On the PowerPC it is R1.  On Sparc it is SP.
   OptoReg::Name  c_frame_pointer() const;
-  static RegMask c_frame_ptr_mask;
+  static RegMaskStatic c_frame_ptr_mask;
 
   // Java-Native vector calling convention
   static bool supports_vector_calling_convention();

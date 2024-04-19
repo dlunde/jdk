@@ -33,7 +33,7 @@
 #include "memory/resourceArea.hpp"
 
 class LRG;
-class RegMask;
+class RegMaskStatic;
 
 //-------------Non-zero bit search methods used by RegMask---------------------
 // Find lowest 1, undefined if empty/0
@@ -57,10 +57,10 @@ static unsigned int find_highest_bit(uintptr_t mask) {
 // However, it means the ADLC can redefine the unroll macro and all loops
 // over register masks will be unrolled by the correct amount.
 
-class RegMaskBase {
+class RegMask {
 
   friend class RegMaskIterator;
-  friend class RegMask;
+  friend class RegMaskStatic;
   friend class RegMaskGrowable;
 
   // The RM_SIZE is aligned to 64-bit - assert that this holds
@@ -100,14 +100,14 @@ class RegMaskBase {
   unsigned int _lwm;
   unsigned int _hwm;
 
-  RegMaskBase(int _rm_size, int _offset = 0)
+  RegMask(int _rm_size, int _offset = 0)
     : _rm_size(_rm_size), _offset(_offset),
       _lwm(_rm_max()), _hwm(0) {}
 
-  RegMaskBase() = delete;
-  RegMaskBase(const RegMaskBase& rm) = delete;
+  RegMask() = delete;
+  RegMask(const RegMask& rm) = delete;
 
-  static void _copy(const RegMaskBase& src, RegMaskBase& dst) {
+  static void _copy(const RegMask& src, RegMask& dst) {
     assert(src._offset == dst._offset, "");
     assert(src._rm_size == dst._rm_size, "");
     dst._hwm = src._hwm;
@@ -119,6 +119,7 @@ class RegMaskBase {
   }
 
  public:
+  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
   // SlotsPerLong is 2, since slots are 32 bits and longs are 64 bits.
   // Also, consider the maximum alignment size for a normally allocated
@@ -142,7 +143,7 @@ class RegMaskBase {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
-  RegMaskBase& operator= (const RegMaskBase& rm) {
+  RegMask& operator= (const RegMask& rm) {
     _copy(rm,*this);
     return *this;
   }
@@ -260,7 +261,7 @@ class RegMaskBase {
   static int num_registers(uint ireg, LRG &lrg);
 
   // Fast overlap test.  Non-zero if any registers in common.
-  bool overlap(const RegMaskBase &rm) const {
+  bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
@@ -320,7 +321,7 @@ class RegMaskBase {
   }
 
   // OR 'rm' into 'this'
-  void OR(const RegMaskBase &rm) {
+  void OR(const RegMask &rm) {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
@@ -334,7 +335,7 @@ class RegMaskBase {
   }
 
   // AND 'rm' into 'this'
-  void AND(const RegMaskBase &rm) {
+  void AND(const RegMask &rm) {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
@@ -350,7 +351,7 @@ class RegMaskBase {
   }
 
   // Subtract 'rm' from 'this'
-  void SUBTRACT(const RegMaskBase &rm) {
+  void SUBTRACT(const RegMask &rm) {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
@@ -364,6 +365,9 @@ class RegMaskBase {
   // Compute size of register mask: number of bits
   uint Size() const;
 
+  static const RegMaskStatic Empty;   // Common empty mask
+  static const RegMaskStatic All;     // Common all mask
+
 #ifndef PRODUCT
   void print() const { dump(); }
   void dump(outputStream *st = tty) const; // Print a mask
@@ -376,9 +380,9 @@ class RegMaskIterator {
   uintptr_t _current_bits;
   unsigned int _next_index;
   OptoReg::Name _reg;
-  const RegMaskBase& _rm;
+  const RegMask& _rm;
  public:
-  RegMaskIterator(const RegMaskBase& rm) : _current_bits(0), _next_index(rm._lwm), _reg(OptoReg::Bad), _rm(rm) {
+  RegMaskIterator(const RegMask& rm) : _current_bits(0), _next_index(rm._lwm), _reg(OptoReg::Bad), _rm(rm) {
     // Calculate the first element
     next();
   }
@@ -422,7 +426,7 @@ class RegMaskIterator {
         unsigned int next_bit = find_lowest_bit(_current_bits);
         assert(((_current_bits >> next_bit) & 0x1) == 1, "lowest bit must be set after shift");
         _current_bits = (_current_bits >> next_bit) - 1;
-        _reg = OptoReg::Name(_rm._offset + ((_next_index - 1) << RegMaskBase::_LogWordBits) + next_bit);
+        _reg = OptoReg::Name(_rm._offset + ((_next_index - 1) << RegMask::_LogWordBits) + next_bit);
         return r;
       }
     }
@@ -433,7 +437,7 @@ class RegMaskIterator {
   }
 };
 
-class RegMask : public RegMaskBase {
+class RegMaskStatic : public RegMask {
 
   // Array of Register Mask bits.  This array is large enough to cover
   // all the machine registers and all parameters that need to be passed
@@ -443,15 +447,14 @@ class RegMask : public RegMaskBase {
   int _RM_STORAGE[RM_SIZE];
 
   public:
-  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
   // A constructor only used by the ADLC output.  All mask fields are filled
   // in directly.  Calls to this look something like RM(1,2,3,4);
-  RegMask(
+  RegMaskStatic(
 #   define BODY(I) int a##I,
     FORALL_BODY
 #   undef BODY
-    int dummy = 0) : RegMaskBase(_RM_SIZE) {
+    int dummy = 0) : RegMask(_RM_SIZE) {
     _RM_I = _RM_STORAGE;
 #if defined(VM_LITTLE_ENDIAN) || !defined(_LP64)
 #   define BODY(I) _RM_I[I] = a##I;
@@ -469,30 +472,37 @@ class RegMask : public RegMaskBase {
   }
 
   // Construct an empty mask
-  RegMask() : RegMaskBase(_RM_SIZE), _RM_STORAGE() {
+  RegMaskStatic() : RegMask(_RM_SIZE), _RM_STORAGE() {
     _RM_I = _RM_STORAGE;
     assert(valid_watermarks(), "post-condition");
   }
 
   // Construct a mask with a single bit
-  RegMask(OptoReg::Name reg) : RegMask() {
+  RegMaskStatic(OptoReg::Name reg) : RegMaskStatic() {
     Insert(reg);
   }
 
-  RegMask(const RegMask& rm) : RegMaskBase(_RM_SIZE) {
+  RegMaskStatic(const RegMaskStatic& rm) : RegMask(_RM_SIZE) {
     _RM_I = _RM_STORAGE;
     _copy(rm,*this);
   }
 
-  RegMask& operator= (const RegMask& rm) {
+  RegMaskStatic(const RegMask& rm) : RegMask(_RM_SIZE) {
+    _RM_I = _RM_STORAGE;
+    _copy(rm,*this);
+  }
+
+  RegMaskStatic& operator= (const RegMaskStatic& rm) {
     _copy(rm,*this);
     return *this;
   }
 
-  ~RegMask() {};
+  /* RegMaskStatic& operator= (const RegMask& rm) { */
+  /*   _copy(rm,*this); */
+  /*   return *this; */
+  /* } */
 
-  static const RegMask Empty;   // Common empty mask
-  static const RegMask All;     // Common all mask
+  /* ~RegMaskStatic() {}; */
 
   static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
     // NOTE: MAX2(1U,size) in computation reflects the usage of the last
@@ -507,7 +517,7 @@ class RegMask : public RegMaskBase {
 
 };
 
-class RegMaskGrowable : public RegMaskBase {
+class RegMaskGrowable : public RegMask {
 
   Arena* _arena;
 
@@ -515,14 +525,22 @@ class RegMaskGrowable : public RegMaskBase {
 
   RegMaskGrowable() : RegMaskGrowable(Thread::current()->resource_area()) {}
 
-  RegMaskGrowable(Arena* arena) : RegMaskBase(_RM_SIZE), _arena(arena) {
+  RegMaskGrowable(Arena* arena) : RegMask(_RM_SIZE), _arena(arena) {
     _RM_UP = NEW_ARENA_ARRAY(arena, uintptr_t, _RM_SIZE);
     memset(_RM_UP, 0, sizeof(uintptr_t) * _RM_SIZE);
   }
 
   void Insert(OptoReg::Name reg) {
-    // TODO Grow if necessary
-    RegMaskBase::Insert(reg);
+    assert(_offset == 0, "");
+    unsigned index = reg >> _LogWordBits;
+    unsigned int min_size = index + 2;
+    if(min_size > _rm_size) {
+      unsigned int old_size = _rm_size;
+      _rm_size = next_power_of_2(min_size);
+      _RM_UP = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP, old_size, _rm_size);
+      memset(_RM_UP + old_size, 0, sizeof(uintptr_t) * (_rm_size - old_size));
+    }
+    RegMask::Insert(reg);
   }
 
 };

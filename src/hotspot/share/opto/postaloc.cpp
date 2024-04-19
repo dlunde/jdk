@@ -174,7 +174,7 @@ int PhaseChaitin::use_prior_register( Node *n, uint idx, Node *def, Block *curre
   const LRG &def_lrg = lrgs(_lrg_map.live_range_id(def));
   OptoReg::Name def_reg = def_lrg.reg();
   const RegMask &use_mask = n->in_RegMask(idx);
-  bool can_use = ( RegMask::can_represent(def_reg) ? (use_mask.Member(def_reg) != 0)
+  bool can_use = ( RegMaskStatic::can_represent(def_reg) ? (use_mask.Member(def_reg) != 0)
                                                    : (use_mask.is_AllStack() != 0));
   if (!RegMask::is_vector(def->ideal_reg())) {
     // Check for a copy to or from a misaligned pair.
@@ -682,7 +682,7 @@ void PhaseChaitin::post_allocate_copy_removal() {
             for (int l = 1; l < n_regs; l++) {
               OptoReg::Name ureg_lo = OptoReg::add(ureg,-l);
               if (!value[ureg_lo] &&
-                  (!RegMask::can_represent(ureg_lo) ||
+                  (!RegMaskStatic::can_represent(ureg_lo) ||
                    lrgs(useidx).mask().Member(ureg_lo))) { // Nearly always adjacent
                 value.map(ureg_lo,valdef); // record improved reaching-def info
                 regnd.map(ureg_lo,   def);
@@ -764,11 +764,11 @@ void PhaseChaitin::post_allocate_copy_removal() {
         // If the value occupies a register pair, record same info
         // in both registers.
         OptoReg::Name nreg_lo = OptoReg::add(nreg,-1);
-        if( RegMask::can_represent(nreg_lo) &&     // Either a spill slot, or
+        if( RegMaskStatic::can_represent(nreg_lo) &&     // Either a spill slot, or
             !lrgs(lidx).mask().Member(nreg_lo) ) { // Nearly always adjacent
           // Sparc occasionally has non-adjacent pairs.
           // Find the actual other value
-          RegMask tmp = lrgs(lidx).mask();
+          RegMaskStatic tmp = lrgs(lidx).mask();
           tmp.Remove(nreg);
           nreg_lo = tmp.find_first_elem();
         }

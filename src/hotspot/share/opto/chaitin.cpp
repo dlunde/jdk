@@ -1378,7 +1378,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
   return false;
 }
 
-static OptoReg::Name find_first_set(LRG &lrg, RegMask mask, int chunk) {
+static OptoReg::Name find_first_set(LRG &lrg, RegMaskStatic mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
 
@@ -1400,7 +1400,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMask mask, int chunk) {
       // does not work for scalable size. We have to find adjacent scalable_reg_slots() bits
       // instead of SlotsPerVecA bits.
       assigned = mask.find_first_set(lrg, num_regs); // find highest valid reg
-      while (OptoReg::is_valid(assigned) && RegMask::can_represent(assigned)) {
+      while (OptoReg::is_valid(assigned) && RegMaskStatic::can_represent(assigned)) {
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           return assigned;
@@ -1453,7 +1453,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
         return reg;
     } else if( chunk == 0 ) {
       // Choose a color which is legal for him
-      RegMask tempmask = lrg.mask();
+      RegMaskStatic tempmask = lrg.mask();
       tempmask.AND(lrgs(copy_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
       OptoReg::Name reg = find_first_set(lrg, tempmask, chunk);
@@ -1545,7 +1545,7 @@ uint PhaseChaitin::Select( ) {
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
-    debug_only(RegMask orig_mask = lrg->mask();)
+    debug_only(RegMaskStatic orig_mask = lrg->mask();)
 
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
@@ -1563,7 +1563,7 @@ uint PhaseChaitin::Select( ) {
         if (nreg >= chunk && nreg < chunk + RegMask::CHUNK_SIZE) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();
-          RegMask rm = lrg->mask();
+          RegMaskStatic rm = lrg->mask();
 #endif
           lrg->SUBTRACT(nlrg.mask());
 #ifndef PRODUCT
@@ -1608,7 +1608,7 @@ uint PhaseChaitin::Select( ) {
     // Did we get a color?
     else if( OptoReg::is_valid(reg)) {
 #ifndef PRODUCT
-      RegMask avail_rm = lrg->mask();
+      RegMaskStatic avail_rm = lrg->mask();
 #endif
 
       // Record selected register
