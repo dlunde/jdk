@@ -68,9 +68,8 @@ class RegMask {
 
   static const unsigned int _WordBitMask = BitsPerWord - 1U;
   static const unsigned int _LogWordBits = LogBitsPerWord;
-  static const unsigned int _RM_SIZE = LP64_ONLY(RM_SIZE >> 1) NOT_LP64(RM_SIZE);
-  static const unsigned int _RM_MAX = _RM_SIZE - 1U;
-
+  static const unsigned int _RM_SIZE     = LP64_ONLY(RM_SIZE >> 1) NOT_LP64(RM_SIZE);
+  static const unsigned int _RM_MAX      = _RM_SIZE - 1U;
 
   union {
     // Array of Register Mask bits.  This array is large enough to cover
@@ -91,6 +90,7 @@ class RegMask {
   // We can offset register masks to present different views of the register
   // space. We define the mask not to contain registers before _offset (i.e.,
   // they are zero).
+  // NOTE We should only offset by full words
   unsigned int _offset;
 
   // The low and high water marks represents the lowest and highest word
@@ -263,7 +263,6 @@ class RegMask {
   // Fast overlap test.  Non-zero if any registers in common.
   bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "");
-    assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -300,7 +299,7 @@ class RegMask {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
     int reg_offset = reg - _offset;
-    assert(reg_offset >= 0, "offset does not allow insertion");
+    assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < _rm_size * BitsPerWord, "sanity");
     assert(valid_watermarks(), "pre-condition");
@@ -314,7 +313,7 @@ class RegMask {
   // Remove register from mask
   void Remove(OptoReg::Name reg) {
     int reg_offset = reg - _offset;
-    assert(reg_offset >= 0, "offset does not allow insertion");
+    assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < _rm_size * BitsPerWord, "");
     _RM_UP[r >> _LogWordBits] &= ~(uintptr_t(1) << (r & _WordBitMask));
@@ -522,6 +521,7 @@ class RegMaskGrowable : public RegMask {
   Arena* _arena;
 
   void _grow(unsigned int min_size) {
+    assert(!is_AllStack(), "");
     if(min_size > _rm_size) {
       unsigned int old_size = _rm_size;
       _rm_size = min_size;
@@ -532,24 +532,19 @@ class RegMaskGrowable : public RegMask {
 
   public:
 
-  RegMaskGrowable() : RegMaskGrowable(Thread::current()->resource_area()) {}
+  RegMaskGrowable();
 
   RegMaskGrowable(Arena* arena) : RegMask(_RM_SIZE), _arena(arena) {
     _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, _RM_SIZE);
     memset(_RM_UP, 0, sizeof(uintptr_t) * _RM_SIZE);
   }
 
-  RegMaskGrowable(const RegMask& rm)
-    : RegMask(rm._rm_size), _arena(Thread::current()->resource_area()) {
-    _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm._rm_size);
-    _copy(rm,*this);
-  }
+  RegMaskGrowable(const RegMask& rm);
 
   void Insert(OptoReg::Name reg) {
     assert(_offset == 0, "");
     unsigned index = reg >> _LogWordBits;
-    unsigned int min_size = index + 2;
-    min_size = next_power_of_2(min_size);
+    unsigned int min_size = index + 1;
     _grow(min_size);
     RegMask::Insert(reg);
   }
