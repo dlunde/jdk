@@ -313,12 +313,12 @@ void Matcher::match( ) {
   _out_arg_limit = OptoReg::add(_new_SP, C->out_preserve_stack_slots());
   assert( is_even(_out_arg_limit), "out_preserve must be even" );
 
-  if (!RegMaskStatic::can_represent_arg(OptoReg::add(_out_arg_limit,-1))) {
-    // the compiler cannot represent this method's calling sequence
-    // Bailout. We do not have space to represent all arguments.
-    assert(false, "Mark");
-    C->record_method_not_compilable("must be able to represent all call arguments in reg mask");
-  }
+  /* if (!RegMaskStatic::can_represent_arg(OptoReg::add(_out_arg_limit,-1))) { */
+  /*   // the compiler cannot represent this method's calling sequence */
+  /*   // Bailout. We do not have space to represent all arguments. */
+  /*   assert(false, "Mark"); */
+  /*   C->record_method_not_compilable("must be able to represent all call arguments in reg mask"); */
+  /* } */
 
   if (C->failing())  return;  // bailed out on incoming arg failure
 
@@ -1454,14 +1454,14 @@ MachNode *Matcher::match_sfpt( SafePointNode *sfpt ) {
     // this killed area.
     uint r_cnt = mcall->tf()->range()->cnt();
     MachProjNode *proj = new MachProjNode( mcall, r_cnt+10000, RegMask::Empty, MachProjNode::fat_proj );
-    if (!RegMaskStatic::can_represent_arg(OptoReg::Name(out_arg_limit_per_call-1))) {
-      // Bailout. We do not have space to represent all arguments.
-      assert(false, "Mark");
-      C->record_method_not_compilable("unsupported outgoing calling sequence");
-    } else {
+    /* if (!RegMaskStatic::can_represent_arg(OptoReg::Name(out_arg_limit_per_call-1))) { */
+    /*   // Bailout. We do not have space to represent all arguments. */
+    /*   assert(false, "Mark"); */
+    /*   C->record_method_not_compilable("unsupported outgoing calling sequence"); */
+    /* } else { */
       for (int i = begin_out_arg_area; i < out_arg_limit_per_call; i++)
         proj->_rout.Insert(OptoReg::Name(i));
-    }
+    /* } */
     if (proj->_rout.is_NotEmpty()) {
       push_projection(proj);
     }

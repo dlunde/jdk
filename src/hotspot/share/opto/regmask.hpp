@@ -93,6 +93,8 @@ class RegMask {
   // NOTE We should only offset by full words
   unsigned int _offset;
 
+  bool _all_stack = false;
+
   // The low and high water marks represents the lowest and highest word
   // that might contain set register mask bits, respectively. We guarantee
   // that there are no bits in words outside this range, but any word at
@@ -115,6 +117,7 @@ class RegMask {
     for (unsigned i = 0; i < dst._rm_size; i++) {
       dst._RM_UP[i] = src._RM_UP[i];
     }
+    dst.set_AllStack(src.is_AllStack());
     assert(dst.valid_watermarks(), "post-condition");
   }
 
@@ -162,13 +165,11 @@ class RegMask {
   // The last bit in the register mask indicates that the mask should repeat
   // indefinitely with ONE bits.  Returns TRUE if mask is infinite or
   // unbounded in size.  Returns FALSE if mask is finite size.
-  bool is_AllStack() const {
+  bool is_AllStack() const { return _all_stack; }
+  bool is_AllStack_Old() const {
     return (_RM_UP[_rm_max()] & (uintptr_t(1) << _WordBitMask)) != 0;
   }
-
-  void set_AllStack() {
-    _RM_UP[_rm_max()] |= (uintptr_t(1) << _WordBitMask);
-  }
+  void set_AllStack(bool value = true) { _all_stack = value; }
 
   // Test for being a not-empty mask.
   bool is_NotEmpty() const {
@@ -177,6 +178,7 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       tmp |= _RM_UP[i];
     }
+    assert(tmp || (!tmp && !is_AllStack()), ""); // !tmp => !is_AllStack()
     return tmp;
   }
 
@@ -195,6 +197,7 @@ class RegMask {
   // Get highest-numbered register from mask, or BAD if mask is empty.
   OptoReg::Name find_last_elem() const {
     assert(valid_watermarks(), "sanity");
+    assert(!is_AllStack(), ""); // Makes no sense to find last element if mask is infinite.
     // Careful not to overflow if _lwm == 0
     unsigned i = _hwm + 1;
     while (i > _lwm) {
@@ -264,6 +267,7 @@ class RegMask {
   bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(!is_AllStack() && !rm.is_AllStack(), "");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     uintptr_t result = 0;
@@ -282,6 +286,7 @@ class RegMask {
     _lwm = _rm_max();
     _hwm = 0;
     memset(_RM_UP, 0, sizeof(uintptr_t) * _rm_size);
+    set_AllStack(false);
     assert(valid_watermarks(), "sanity");
   }
 
@@ -291,6 +296,7 @@ class RegMask {
     _lwm = 0;
     _hwm = _rm_max();
     memset(_RM_UP, 0xFF, sizeof(uintptr_t) * _rm_size);
+    set_AllStack(true);
     assert(valid_watermarks(), "sanity");
   }
 
@@ -330,6 +336,7 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       _RM_UP[i] |= rm._RM_UP[i];
     }
+    set_AllStack(rm.is_AllStack());
     assert(valid_watermarks(), "sanity");
   }
 
@@ -338,6 +345,7 @@ class RegMask {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(!rm.is_AllStack(), ""); set_AllStack(false);
     // Do not evaluate words outside the current watermark range, as they are
     // already zero and an &= would not change that
     for (unsigned i = _lwm; i <= _hwm; i++) {
@@ -354,6 +362,7 @@ class RegMask {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(!rm.is_AllStack(), "");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     for (unsigned i = lwm; i <= hwm; i++) {
