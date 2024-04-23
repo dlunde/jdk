@@ -466,8 +466,8 @@ void RegMask::dump(outputStream *st) const {
       st->print("-");
       OptoReg::dump(last, st);
     }
-    if (is_AllStack()) st->print("...");
   }
+  if (is_AllStack()) st->print("...");
   st->print("]");
 }
 #endif

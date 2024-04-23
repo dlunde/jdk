@@ -146,7 +146,7 @@ class RegMask {
          SlotsPerRegVectMask = X86_ONLY(2) NOT_X86(1)
          };
 
-  RegMask& operator= (const RegMask& rm) {
+  virtual RegMask& operator= (const RegMask& rm) {
     _copy(rm,*this);
     return *this;
   }
@@ -300,6 +300,25 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
+  void Set_From(OptoReg::Name reg) {
+    assert(reg != OptoReg::Bad, "sanity");
+    assert(reg != OptoReg::Special, "sanity");
+    int reg_offset = reg - _offset;
+    assert(reg_offset >= 0, "");
+    unsigned r = (unsigned)reg_offset;
+    assert(r < _rm_size * BitsPerWord, "sanity");
+    assert(valid_watermarks(), "pre-condition");
+    unsigned index = r >> _LogWordBits;
+    _RM_UP[index] |= (uintptr_t(-1) << (r & _WordBitMask));
+    if (index < _rm_max()) {
+      memset(_RM_UP + index + 1, 0xFF, sizeof(uintptr_t) * (_rm_max() - index));
+    }
+    if (index < _lwm) _lwm = index;
+    _hwm = _rm_max();
+    set_AllStack();
+    assert(valid_watermarks(), "post-condition");
+  }
+
   // Insert register into mask
   void Insert(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
@@ -326,9 +345,10 @@ class RegMask {
   }
 
   // OR 'rm' into 'this'
-  void OR(const RegMask &rm) {
+  virtual void OR(const RegMask &rm) {
     assert(_offset == rm._offset, "");
-    assert(_rm_size == rm._rm_size, "");
+    assert(_rm_size == rm._rm_size ||
+           (_rm_size > rm._rm_size && !rm.is_AllStack()), "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // OR widens the live range
     if (_lwm > rm._lwm) _lwm = rm._lwm;
@@ -510,17 +530,13 @@ class RegMaskStatic : public RegMask {
     return *this;
   }
 
-  /* RegMaskStatic& operator= (const RegMask& rm) { */
-  /*   _copy(rm,*this); */
-  /*   return *this; */
-  /* } */
-
-  /* ~RegMaskStatic() {}; */
+  RegMaskStatic& operator= (const RegMask& rm) {
+    _copy(rm,*this);
+    return *this;
+  }
 
   static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
-    // NOTE: MAX2(1U,size) in computation reflects the usage of the last
-    //       bit of the regmask as an infinite stack flag.
-    return (int)reg < (int)(CHUNK_SIZE - MAX2(1U,size));
+    return (int)reg <= (int)(CHUNK_SIZE - size);
   }
   static bool can_represent_arg(OptoReg::Name reg) {
     // NOTE: SlotsPerVecZ in computation reflects the need
@@ -541,7 +557,7 @@ class RegMaskGrowable : public RegMask {
       _RM_UP = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP, old_size, _rm_size);
       int fill = 0;
       if(is_AllStack()) {
-        fill = -1;
+        fill = 0xFF;
         _hwm = _rm_max();
       }
       memset(_RM_UP + old_size, fill, sizeof(uintptr_t) * (_rm_size - old_size));
@@ -591,6 +607,14 @@ class RegMaskGrowable : public RegMask {
   void SUBTRACT(const RegMask &rm) {
     _grow(rm._rm_size);
     RegMask::SUBTRACT(rm);
+  }
+
+  void Set_From(OptoReg::Name reg) {
+    assert(_offset == 0, "");
+    unsigned index = reg >> _LogWordBits;
+    unsigned int min_size = index + 1;
+    _grow(min_size);
+    RegMask::Set_From(reg);
   }
 
 };

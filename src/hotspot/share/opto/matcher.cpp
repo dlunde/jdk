@@ -480,11 +480,11 @@ int Matcher::scalable_predicate_reg_slots() {
 void Matcher::init_first_stack_mask() {
 
   // Allocate storage for spill masks as masks for the appropriate load type.
-  RegMaskStatic *rms = (RegMaskStatic*)C->comp_arena()->AmallocWords(sizeof(RegMaskStatic) * NOF_STACK_MASKS);
+  RegMaskGrowable *rms = (RegMaskGrowable*)C->comp_arena()->AmallocWords(sizeof(RegMaskGrowable) * NOF_STACK_MASKS);
 
   // Initialize empty placeholder masks into the newly allocated arena
   for (int i = 0; i < NOF_STACK_MASKS; i++) {
-    new (rms + i) RegMaskStatic();
+    new (rms + i) RegMaskGrowable();
   }
 
   idealreg2spillmask  [Op_RegN] = &rms[0];
@@ -546,19 +546,20 @@ void Matcher::init_first_stack_mask() {
   // Add in all bits past the outgoing argument area
   /* guarantee(RegMaskStatic::can_represent_arg(OptoReg::add(_out_arg_limit,-1)), */
   /*           "must be able to represent all call arguments in reg mask"); */
-  OptoReg::Name init = _out_arg_limit;
-  for (i = init; RegMaskStatic::can_represent(i); i = OptoReg::add(i,1)) {
-    C->FIRST_STACK_mask().Insert(i);
-  }
-  // Finally, set the "infinite stack" bit.
-  C->FIRST_STACK_mask().set_AllStack();
+  /* OptoReg::Name init = _out_arg_limit; */
+  C->FIRST_STACK_mask().Set_From(_out_arg_limit);
+  /* for (i = init; RegMaskStatic::can_represent(i); i = OptoReg::add(i,1)) { */
+  /*   C->FIRST_STACK_mask().Insert(i); */
+  /* } */
+  /* // Finally, set the "infinite stack" bit. */
+  /* C->FIRST_STACK_mask().set_AllStack(); */
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
-  RegMaskStatic aligned_stack_mask = C->FIRST_STACK_mask();
+  RegMaskGrowable aligned_stack_mask(C->FIRST_STACK_mask());
   // Keep spill masks aligned.
   aligned_stack_mask.clear_to_pairs();
   assert(aligned_stack_mask.is_AllStack(), "should be infinite stack");
-  RegMaskStatic scalable_stack_mask = aligned_stack_mask;
+  RegMaskGrowable scalable_stack_mask(aligned_stack_mask);
 
   *idealreg2spillmask[Op_RegP] = *idealreg2regmask[Op_RegP];
 #ifdef _LP64
