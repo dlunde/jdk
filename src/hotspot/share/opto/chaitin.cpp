@@ -1378,7 +1378,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
   return false;
 }
 
-static OptoReg::Name find_first_set(LRG &lrg, RegMaskStatic mask, int chunk) {
+static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
 
@@ -1502,6 +1502,7 @@ OptoReg::Name PhaseChaitin::choose_color( LRG &lrg, int chunk ) {
          lrg.num_regs() == 2,"fat projs exactly color" );
   assert( !chunk, "always color in 1st chunk" );
   // Return the highest element in the set.
+  assert(!lrg.mask().is_AllStack(), "");
   return lrg.mask().find_last_elem();
 }
 
@@ -1545,7 +1546,7 @@ uint PhaseChaitin::Select( ) {
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
-    debug_only(RegMaskStatic orig_mask = lrg->mask();)
+    debug_only(RegMaskGrowable orig_mask(lrg->mask());)
 
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
@@ -1608,7 +1609,7 @@ uint PhaseChaitin::Select( ) {
     // Did we get a color?
     else if( OptoReg::is_valid(reg)) {
 #ifndef PRODUCT
-      RegMaskStatic avail_rm = lrg->mask();
+      RegMaskGrowable avail_rm(lrg->mask());
 #endif
 
       // Record selected register

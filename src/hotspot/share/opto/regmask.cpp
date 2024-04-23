@@ -481,3 +481,8 @@ RegMaskGrowable::RegMaskGrowable(const RegMask& rm)
   _copy(rm,*this);
 }
 
+RegMaskGrowable::RegMaskGrowable(const RegMaskGrowable& rm)
+  : RegMask(rm._rm_size), _arena(Compile::current()->comp_arena()) {
+  _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm._rm_size);
+  _copy(rm,*this);
+}

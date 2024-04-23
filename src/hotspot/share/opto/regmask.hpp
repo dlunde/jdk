@@ -156,7 +156,7 @@ class RegMask {
     int reg_offset = reg - _offset;
     if(reg_offset < 0) { return false; }
     unsigned r = (unsigned)reg_offset;
-    assert(r < _rm_size * BitsPerWord, "");
+    if (r >= _rm_size * BitsPerWord) { return is_AllStack(); }
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
 
@@ -197,7 +197,7 @@ class RegMask {
   // Get highest-numbered register from mask, or BAD if mask is empty.
   OptoReg::Name find_last_elem() const {
     assert(valid_watermarks(), "sanity");
-    assert(!is_AllStack(), ""); // Makes no sense to find last element if mask is infinite.
+    if(is_AllStack()) { return OptoReg::Name(INT_MAX); }
     // Careful not to overflow if _lwm == 0
     unsigned i = _hwm + 1;
     while (i > _lwm) {
@@ -267,14 +267,14 @@ class RegMask {
   bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    assert(!is_AllStack() && !rm.is_AllStack(), "");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     uintptr_t result = 0;
     for (unsigned i = lwm; i <= hwm; i++) {
       result |= _RM_UP[i] & rm._RM_UP[i];
     }
-    return result;
+    bool overlap_all_stack = is_AllStack() && rm.is_AllStack();
+    return result || overlap_all_stack;
   }
 
   // Special test for register pressure based splitting
@@ -336,7 +336,7 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       _RM_UP[i] |= rm._RM_UP[i];
     }
-    set_AllStack(rm.is_AllStack());
+    set_AllStack(is_AllStack() || rm.is_AllStack());
     assert(valid_watermarks(), "sanity");
   }
 
@@ -345,7 +345,6 @@ class RegMask {
     assert(_offset == rm._offset, "");
     assert(_rm_size == rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    assert(!rm.is_AllStack(), ""); set_AllStack(false);
     // Do not evaluate words outside the current watermark range, as they are
     // already zero and an &= would not change that
     for (unsigned i = _lwm; i <= _hwm; i++) {
@@ -355,19 +354,25 @@ class RegMask {
     // Update after to ensure non-overlapping words are zeroed out.
     if (_lwm < rm._lwm) _lwm = rm._lwm;
     if (_hwm > rm._hwm) _hwm = rm._hwm;
+    set_AllStack(is_AllStack() && rm.is_AllStack());
   }
 
   // Subtract 'rm' from 'this'
   void SUBTRACT(const RegMask &rm) {
     assert(_offset == rm._offset, "");
-    assert(_rm_size == rm._rm_size, "");
+    assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    assert(!rm.is_AllStack(), "");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     for (unsigned i = lwm; i <= hwm; i++) {
       _RM_UP[i] &= ~rm._RM_UP[i];
     }
+    if (rm.is_AllStack()) {
+      for (unsigned i = rm._rm_size; i <= _rm_max(); i++) {
+        _RM_UP[i] = 0;
+      }
+    }
+    set_AllStack(is_AllStack() && !rm.is_AllStack());
   }
 
   // Compute size of register mask: number of bits
@@ -530,12 +535,16 @@ class RegMaskGrowable : public RegMask {
   Arena* _arena;
 
   void _grow(unsigned int min_size) {
-    assert(!is_AllStack(), "");
     if(min_size > _rm_size) {
       unsigned int old_size = _rm_size;
       _rm_size = min_size;
       _RM_UP = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP, old_size, _rm_size);
-      memset(_RM_UP + old_size, 0, sizeof(uintptr_t) * (_rm_size - old_size));
+      int fill = 0;
+      if(is_AllStack()) {
+        fill = -1;
+        _hwm = _rm_max();
+      }
+      memset(_RM_UP + old_size, fill, sizeof(uintptr_t) * (_rm_size - old_size));
     }
   }
 
@@ -549,6 +558,7 @@ class RegMaskGrowable : public RegMask {
   }
 
   RegMaskGrowable(const RegMask& rm);
+  RegMaskGrowable(const RegMaskGrowable& rm);
 
   void Insert(OptoReg::Name reg) {
     assert(_offset == 0, "");
@@ -568,6 +578,19 @@ class RegMaskGrowable : public RegMask {
     _grow(rm._rm_size);
     _copy(rm,*this);
     return *this;
+  }
+
+  void OR(const RegMask &rm) {
+    _grow(rm._rm_size);
+    RegMask::OR(rm);
+  }
+  void AND(const RegMask &rm) {
+    _grow(rm._rm_size);
+    RegMask::AND(rm);
+  }
+  void SUBTRACT(const RegMask &rm) {
+    _grow(rm._rm_size);
+    RegMask::SUBTRACT(rm);
   }
 
 };

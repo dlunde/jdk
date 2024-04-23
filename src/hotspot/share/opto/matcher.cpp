@@ -544,8 +544,8 @@ void Matcher::init_first_stack_mask() {
     C->FIRST_STACK_mask().Insert(i);
   }
   // Add in all bits past the outgoing argument area
-  guarantee(RegMaskStatic::can_represent_arg(OptoReg::add(_out_arg_limit,-1)),
-            "must be able to represent all call arguments in reg mask");
+  /* guarantee(RegMaskStatic::can_represent_arg(OptoReg::add(_out_arg_limit,-1)), */
+  /*           "must be able to represent all call arguments in reg mask"); */
   OptoReg::Name init = _out_arg_limit;
   for (i = init; RegMaskStatic::can_represent(i); i = OptoReg::add(i,1)) {
     C->FIRST_STACK_mask().Insert(i);
