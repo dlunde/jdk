@@ -108,6 +108,7 @@ class RegMask {
 
   RegMask() = delete;
   RegMask(const RegMask& rm) = delete;
+  // TODO Delete move constructor?
 
   static void _copy(const RegMask& src, RegMask& dst) {
     assert(src._offset == dst._offset, "");
@@ -166,9 +167,6 @@ class RegMask {
   // indefinitely with ONE bits.  Returns TRUE if mask is infinite or
   // unbounded in size.  Returns FALSE if mask is finite size.
   bool is_AllStack() const { return _all_stack; }
-  bool is_AllStack_Old() const {
-    return (_RM_UP[_rm_max()] & (uintptr_t(1) << _WordBitMask)) != 0;
-  }
   void set_AllStack(bool value = true) { _all_stack = value; }
 
   // Test for being a not-empty mask.
@@ -398,13 +396,13 @@ class RegMask {
   // Compute size of register mask: number of bits
   uint Size() const;
 
-  static const RegMaskStatic Empty;   // Common empty mask
-  static const RegMaskStatic All;     // Common all mask
-
 #ifndef PRODUCT
   void print() const { dump(); }
   void dump(outputStream *st = tty) const; // Print a mask
 #endif
+
+  static const RegMaskStatic Empty;   // Common empty mask
+  static const RegMaskStatic All;     // Common all mask
 
 };
 

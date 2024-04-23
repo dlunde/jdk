@@ -120,14 +120,12 @@ static const uintptr_t low_bits[5] = { fives, // 0x5555..55
 void RegMask::clear_to_pairs() {
   assert(_offset == 0, "");
   assert(valid_watermarks(), "sanity");
-  /* bool _all_stack_before = is_AllStack_Old(); */
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
     bits &= ((bits & fives) << 1U); // 1 hi-bit set for each pair
     bits |= (bits >> 1U);          // Smear 1 hi-bit into a pair
     _RM_UP[i] = bits;
   }
-  /* assert(_all_stack_before == is_AllStack_Old(), ""); */
   assert(is_aligned_pairs(), "mask is not aligned, adjacent pairs");
 }
 
@@ -267,7 +265,6 @@ OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
 void RegMask::clear_to_sets(const unsigned int size) {
   assert(_offset == 0, "");
   if (size == 1) return;
-  /* bool _all_stack_before = is_AllStack_Old(); */
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
   assert(valid_watermarks(), "sanity");
@@ -290,13 +287,11 @@ void RegMask::clear_to_sets(const unsigned int size) {
     }
     _RM_UP[i] = sets;
   }
-  /* assert(_all_stack_before == is_AllStack_Old(), ""); */
   assert(is_aligned_sets(size), "mask is not aligned, adjacent sets");
 }
 
 // Smear out partial bits to aligned adjacent bit sets
 void RegMask::smear_to_sets(const unsigned int size) {
-  /* bool _all_stack_before = is_AllStack_Old(); */
   assert(_offset == 0, "");
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
@@ -323,7 +318,6 @@ void RegMask::smear_to_sets(const unsigned int size) {
     _RM_UP[i] = sets;
   }
   assert(is_aligned_sets(size), "mask is not aligned, adjacent sets");
-  /* assert(_all_stack_before == is_AllStack_Old(), ""); */
 }
 
 // Assert that the register mask contains only bit sets.
