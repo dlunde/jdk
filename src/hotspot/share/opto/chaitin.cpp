@@ -1600,6 +1600,7 @@ uint PhaseChaitin::Select( ) {
     // a chunk-rollover event
     if(!OptoReg::is_valid(OptoReg::add(reg,-chunk)) && is_allstack) {
       // Bump register mask up to next stack chunk
+      assert(false, "Mark");
       chunk += RegMask::CHUNK_SIZE;
       lrg->Set_All();
       goto retry_next_chunk;

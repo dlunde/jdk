@@ -397,12 +397,27 @@ class RegMask {
     set_AllStack(is_AllStack() && !rm.is_AllStack());
   }
 
+  void rollover() {
+    assert(is_AllStack_only(),"");
+    _offset_up += _rm_size;
+    Set_All();
+  }
+
   // Compute size of register mask: number of bits
   uint Size() const;
 
 #ifndef PRODUCT
   void print() const { dump(); }
   void dump(outputStream *st = tty) const; // Print a mask
+
+  bool is_AllStack_only() const {
+    assert(valid_watermarks(), "sanity");
+    uintptr_t tmp = 0;
+    for (unsigned i = _lwm; i <= _hwm; i++) {
+      tmp |= _RM_UP[i];
+    }
+    return !tmp && is_AllStack();
+  }
 #endif
 
   static const RegMaskStatic Empty;   // Common empty mask
