@@ -90,9 +90,8 @@ class RegMask {
   // We can offset register masks to present different views of the register
   // space. We define the mask not to contain registers before _offset (i.e.,
   // they are zero).
-  // NOTE We should only offset by full words
-  unsigned int _offset_up;
-  unsigned int _offset_bits() const { return _offset_up * BitsPerWord; };
+  unsigned int _offset;
+  unsigned int _offset_bits() const { return _offset * BitsPerWord; };
 
   bool _all_stack = false;
 
@@ -104,13 +103,13 @@ class RegMask {
   unsigned int _hwm;
 
   // Protected constructor
-  RegMask(int _rm_size, int _offset_up = 0)
-    : _rm_size(_rm_size), _offset_up(_offset_up),
+  RegMask(int _rm_size, int _offset = 0)
+    : _rm_size(_rm_size), _offset(_offset),
       _lwm(_rm_max()), _hwm(0) {}
 
   // Common copying functionality
   static void _copy(const RegMask& src, RegMask& dst) {
-    assert(src._offset_up == dst._offset_up, "");
+    assert(src._offset == dst._offset, "");
     assert(src._rm_size == dst._rm_size, "");
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
@@ -157,7 +156,7 @@ class RegMask {
     int reg_offset = reg - _offset_bits();
     if(reg_offset < 0) { return false; }
     unsigned r = (unsigned)reg_offset;
-    if (r >= _rm_size * BitsPerWord) { return is_AllStack(); }
+    if (r >= rm_size_bits()) { return is_AllStack(); }
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
 
@@ -261,7 +260,7 @@ class RegMask {
 
   // Fast overlap test.  Non-zero if any registers in common.
   bool overlap(const RegMask &rm) const {
-    assert(_offset_up == rm._offset_up, "");
+    assert(_offset == rm._offset, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -277,7 +276,7 @@ class RegMask {
   // UP means register only, Register plus stack, or stack only is DOWN
   bool is_UP() const;
 
-  // Clear a register mask
+  // Clear a register mask. Does _NOT_ clear any offset.
   void Clear() {
     _lwm = _rm_max();
     _hwm = 0;
@@ -288,7 +287,11 @@ class RegMask {
 
   // Fill a register mask with 1's
   void Set_All() {
-    assert(_offset_up == 0, "");
+    assert(_offset == 0, "");
+    Set_All_From_Offset();
+  }
+
+  void Set_All_From_Offset() {
     _lwm = 0;
     _hwm = _rm_max();
     memset(_RM_UP, 0xFF, sizeof(uintptr_t) * _rm_size);
@@ -296,13 +299,13 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
-  virtual void Set_From(OptoReg::Name reg) {
+  virtual void Set_All_From(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
     int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
-    assert(r < _rm_size * BitsPerWord, "sanity");
+    assert(r < rm_size_bits(), "sanity");
     assert(valid_watermarks(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     _RM_UP[index] |= (uintptr_t(-1) << (r & _WordBitMask));
@@ -322,7 +325,7 @@ class RegMask {
     int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
-    assert(r < _rm_size * BitsPerWord, "sanity");
+    assert(r < rm_size_bits(), "sanity");
     assert(valid_watermarks(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     if (index > _hwm) _hwm = index;
@@ -336,13 +339,16 @@ class RegMask {
     int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
-    assert(r < _rm_size * BitsPerWord, "");
+    if (r >= rm_size_bits()) {
+      assert(!is_AllStack(), "");
+      return;
+    }
     _RM_UP[r >> _LogWordBits] &= ~(uintptr_t(1) << (r & _WordBitMask));
   }
 
   // OR 'rm' into 'this'
   virtual void OR(const RegMask &rm) {
-    assert(_offset_up == rm._offset_up, "");
+    assert(_offset == rm._offset, "");
     assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // OR widens the live range
@@ -361,7 +367,7 @@ class RegMask {
 
   // AND 'rm' into 'this'
   virtual void AND(const RegMask &rm) {
-    assert(_offset_up == rm._offset_up, "");
+    assert(_offset == rm._offset, "");
     assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Do not evaluate words outside the current watermark range, as they are
@@ -378,30 +384,36 @@ class RegMask {
       _hwm = rm._rm_max();
     }
     set_AllStack(is_AllStack() && rm.is_AllStack());
+    assert(valid_watermarks(), "sanity");
   }
 
   // Subtract 'rm' from 'this'
   virtual void SUBTRACT(const RegMask &rm) {
-    assert(_offset_up == rm._offset_up, "");
-    assert(_rm_size >= rm._rm_size, "");
+    /* assert(_offset == rm._offset, ""); */
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    unsigned hwm = MIN2(_hwm, rm._hwm);
-    unsigned lwm = MAX2(_lwm, rm._lwm);
+    int rm_index_diff = _offset - rm._offset;
+    assert(((int)_rm_max() >= (int)rm._hwm - rm_index_diff) || !is_AllStack(), "");
+    unsigned hwm = MIN2(_hwm, rm._hwm - rm_index_diff);
+    unsigned lwm = MAX2(_lwm, rm._lwm - rm_index_diff);
     for (unsigned i = lwm; i <= hwm; i++) {
-      _RM_UP[i] &= ~rm._RM_UP[i];
+      _RM_UP[i] &= ~rm._RM_UP[i + rm_index_diff];
     }
-    if (rm.is_AllStack() && rm._rm_size < _rm_size ) {
-      memset(_RM_UP + rm._rm_size, 0, sizeof(uintptr_t) * (_rm_size - rm._rm_size));
-      _hwm = rm._rm_max();
+    if (rm.is_AllStack() && rm._rm_size - rm_index_diff < _rm_size ) {
+      memset(_RM_UP + (rm._rm_size - rm_index_diff), 0, sizeof(uintptr_t) * (_rm_size - (rm._rm_size - rm_index_diff)));
+      _hwm = rm._rm_max() - rm_index_diff;
     }
     set_AllStack(is_AllStack() && !rm.is_AllStack());
+    assert(valid_watermarks(), "sanity");
   }
 
   void rollover() {
     assert(is_AllStack_only(),"");
-    _offset_up += _rm_size;
-    Set_All();
+    _offset += _rm_size;
+    Set_All_From_Offset();
   }
+
+  bool is_offset() const { return _offset > 0; }
+  unsigned int offset() const { return _offset; }
 
   // Compute size of register mask: number of bits
   uint Size() const;
@@ -532,12 +544,12 @@ class RegMaskStatic : public RegMask {
     Insert(reg);
   }
 
-  RegMaskStatic(const RegMaskStatic& rm) : RegMask(_RM_SIZE) {
+  RegMaskStatic(const RegMaskStatic& rm) : RegMask(_RM_SIZE, rm.offset()) {
     _RM_I = _RM_STORAGE;
     _copy(rm,*this);
   }
 
-  RegMaskStatic(const RegMask& rm) : RegMask(_RM_SIZE) {
+  RegMaskStatic(const RegMask& rm) : RegMask(_RM_SIZE, rm.offset()) {
     _RM_I = _RM_STORAGE;
     _copy(rm,*this);
   }
@@ -582,7 +594,7 @@ class RegMaskGrowable : public RegMask {
 
   RegMaskGrowable(const RegMask& rm);
   RegMaskGrowable(const RegMask& rm, Arena* arena)
-    : RegMask(rm.rm_size()), _arena(arena) {
+    : RegMask(rm.rm_size(), rm.offset()), _arena(arena) {
       _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm.rm_size());
       _copy(rm,*this);
     }
@@ -623,11 +635,11 @@ class RegMaskGrowable : public RegMask {
     RegMask::SUBTRACT(rm);
   }
 
-  void Set_From(OptoReg::Name reg) {
+  void Set_All_From(OptoReg::Name reg) {
     unsigned index = reg >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);
-    RegMask::Set_From(reg);
+    RegMask::Set_All_From(reg);
   }
 
 };

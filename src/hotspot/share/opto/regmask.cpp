@@ -118,7 +118,6 @@ static const uintptr_t low_bits[5] = { fives, // 0x5555..55
 
 // Clear out partial bits; leave only bit pairs
 void RegMask::clear_to_pairs() {
-  assert(_offset_up == 0, "");
   assert(valid_watermarks(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
@@ -130,12 +129,10 @@ void RegMask::clear_to_pairs() {
 }
 
 bool RegMask::is_misaligned_pair() const {
-  assert(_offset_up == 0, "");
   return Size() == 2 && !is_aligned_pairs();
 }
 
 bool RegMask::is_aligned_pairs() const {
-  assert(_offset_up == 0, "");
   // Assert that the register mask contains only bit pairs.
   assert(valid_watermarks(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
@@ -155,7 +152,6 @@ bool RegMask::is_aligned_pairs() const {
 
 // Return TRUE if the mask contains a single bit
 bool RegMask::is_bound1() const {
-  assert(_offset_up == 0, "");
   if (is_AllStack()) return false;
 
   for (unsigned i = _lwm; i <= _hwm; i++) {
@@ -182,7 +178,6 @@ bool RegMask::is_bound1() const {
 
 // Return TRUE if the mask contains an adjacent pair of bits and no other bits.
 bool RegMask::is_bound_pair() const {
-  assert(_offset_up == 0, "");
   if (is_AllStack()) return false;
 
   assert(valid_watermarks(), "sanity");
@@ -218,7 +213,6 @@ bool RegMask::is_bound_pair() const {
 
 // Test for a single adjacent set of ideal register's size.
 bool RegMask::is_bound(uint ireg) const {
-  assert(_offset_up == 0, "");
   if (is_vector(ireg)) {
     if (is_bound_set(num_registers(ireg)))
       return true;
@@ -231,7 +225,6 @@ bool RegMask::is_bound(uint ireg) const {
 // Check that whether given reg number with size is valid
 // for current regmask, where reg is the highest number.
 bool RegMask::is_valid_reg(OptoReg::Name reg, const int size) const {
-  assert(_offset_up == 0, "");
   for (int i = 0; i < size; i++) {
     if (!Member(reg - i)) {
       return false;
@@ -244,7 +237,6 @@ bool RegMask::is_valid_reg(OptoReg::Name reg, const int size) const {
 // HIGHEST register number in the set, or BAD if no sets.
 // Works also for size 1.
 OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
-  assert(_offset_up == 0, "");
   if (lrg.is_scalable() && lrg._is_vector) {
     // For scalable vector register, regmask is SlotsPerVecA bits aligned.
     assert(is_aligned_sets(SlotsPerVecA), "mask is not aligned, adjacent sets");
@@ -255,7 +247,7 @@ OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
   for (unsigned i = _lwm; i <= _hwm; i++) {
     if (_RM_UP[i]) {                // Found some bits
       // Convert to bit number, return hi bit in pair
-      return OptoReg::Name((i<<_LogWordBits) + find_lowest_bit(_RM_UP[i]) + (size - 1));
+      return OptoReg::Name(_offset_bits() + (i<<_LogWordBits) + find_lowest_bit(_RM_UP[i]) + (size - 1));
     }
   }
   return OptoReg::Bad;
@@ -263,7 +255,6 @@ OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
 
 // Clear out partial bits; leave only aligned adjacent bit pairs
 void RegMask::clear_to_sets(const unsigned int size) {
-  assert(_offset_up == 0, "");
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
@@ -292,7 +283,6 @@ void RegMask::clear_to_sets(const unsigned int size) {
 
 // Smear out partial bits to aligned adjacent bit sets
 void RegMask::smear_to_sets(const unsigned int size) {
-  assert(_offset_up == 0, "");
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
@@ -322,7 +312,6 @@ void RegMask::smear_to_sets(const unsigned int size) {
 
 // Assert that the register mask contains only bit sets.
 bool RegMask::is_aligned_sets(const unsigned int size) const {
-  assert(_offset_up == 0, "");
   if (size == 1) return true;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
@@ -352,7 +341,6 @@ bool RegMask::is_aligned_sets(const unsigned int size) const {
 // Return TRUE if the mask contains one adjacent set of bits and no other bits.
 // Works also for size 1.
 bool RegMask::is_bound_set(const unsigned int size) const {
-  assert(_offset_up == 0, "");
   if (is_AllStack()) return false;
   assert(1 <= size && size <= 16, "update low bits table");
   assert(valid_watermarks(), "sanity");
@@ -395,7 +383,6 @@ bool RegMask::is_bound_set(const unsigned int size) const {
 
 // UP means register only, Register plus stack, or stack only is DOWN
 bool RegMask::is_UP() const {
-  assert(_offset_up == 0, "");
   // Quick common case check for DOWN (any stack slot is legal)
   if (is_AllStack())
     return false;
@@ -408,7 +395,6 @@ bool RegMask::is_UP() const {
 
 // Compute size of register mask in bits
 uint RegMask::Size() const {
-  assert(_offset_up == 0, "");
   uint sum = 0;
   assert(valid_watermarks(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {

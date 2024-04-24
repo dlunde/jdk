@@ -528,7 +528,7 @@ void Matcher::init_first_stack_mask() {
     C->FIRST_STACK_mask().Insert(i);
   }
   // Add in all bits past the outgoing argument area
-  C->FIRST_STACK_mask().Set_From(_out_arg_limit);
+  C->FIRST_STACK_mask().Set_All_From(_out_arg_limit);
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
   RegMaskGrowable aligned_stack_mask(C->FIRST_STACK_mask());
@@ -952,7 +952,7 @@ void Matcher::init_spill_mask( Node *ret ) {
   // Start at OptoReg::stack0()
   STACK_ONLY_mask.Clear();
   // STACK_ONLY_mask is all stack bits
-  STACK_ONLY_mask.Set_From(OptoReg::stack2reg(0));
+  STACK_ONLY_mask.Set_All_From(OptoReg::stack2reg(0));
 
   OptoReg::Name i;
   for (i = OptoReg::Name(0); i < OptoReg::Name(_last_Mach_Reg); i = OptoReg::add(i, 1)) {
