@@ -91,7 +91,8 @@ class RegMask {
   // space. We define the mask not to contain registers before _offset (i.e.,
   // they are zero).
   // NOTE We should only offset by full words
-  unsigned int _offset;
+  unsigned int _offset_up;
+  unsigned int _offset_bits() const { return _offset_up * BitsPerWord; };
 
   bool _all_stack = false;
 
@@ -103,13 +104,13 @@ class RegMask {
   unsigned int _hwm;
 
   // Protected constructor
-  RegMask(int _rm_size, int _offset = 0)
-    : _rm_size(_rm_size), _offset(_offset),
+  RegMask(int _rm_size, int _offset_up = 0)
+    : _rm_size(_rm_size), _offset_up(_offset_up),
       _lwm(_rm_max()), _hwm(0) {}
 
   // Common copying functionality
   static void _copy(const RegMask& src, RegMask& dst) {
-    assert(src._offset == dst._offset, "");
+    assert(src._offset_up == dst._offset_up, "");
     assert(src._rm_size == dst._rm_size, "");
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
@@ -124,6 +125,7 @@ class RegMask {
   enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord }; // TODO Move to private and expose _rm_size instead
 
   unsigned int rm_size() const { return _rm_size; }
+  unsigned int rm_size_bits() const { return _rm_size * BitsPerWord; }
 
   // SlotsPerLong is 2, since slots are 32 bits and longs are 64 bits.
   // Also, consider the maximum alignment size for a normally allocated
@@ -152,14 +154,12 @@ class RegMask {
 
   // Check for register being in mask
   bool Member(OptoReg::Name reg) const {
-    int reg_offset = reg - _offset;
+    int reg_offset = reg - _offset_bits();
     if(reg_offset < 0) { return false; }
     unsigned r = (unsigned)reg_offset;
     if (r >= _rm_size * BitsPerWord) { return is_AllStack(); }
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
-
-  void set_offset(int offset) { _offset = offset; }
 
   // The last bit in the register mask indicates that the mask should repeat
   // indefinitely with ONE bits.  Returns TRUE if mask is infinite or
@@ -184,7 +184,7 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       uintptr_t bits = _RM_UP[i];
       if (bits) {
-        return OptoReg::Name(_offset + (i << _LogWordBits) + find_lowest_bit(bits));
+        return OptoReg::Name(_offset_bits() + (i << _LogWordBits) + find_lowest_bit(bits));
       }
     }
     return OptoReg::Name(OptoReg::Bad);
@@ -199,7 +199,7 @@ class RegMask {
     while (i > _lwm) {
       uintptr_t bits = _RM_UP[--i];
       if (bits) {
-        return OptoReg::Name(_offset + (i << _LogWordBits) + find_highest_bit(bits));
+        return OptoReg::Name(_offset_bits() + (i << _LogWordBits) + find_highest_bit(bits));
       }
     }
     return OptoReg::Name(OptoReg::Bad);
@@ -261,7 +261,7 @@ class RegMask {
 
   // Fast overlap test.  Non-zero if any registers in common.
   bool overlap(const RegMask &rm) const {
-    assert(_offset == rm._offset, "");
+    assert(_offset_up == rm._offset_up, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
@@ -288,7 +288,7 @@ class RegMask {
 
   // Fill a register mask with 1's
   void Set_All() {
-    assert(_offset == 0, "");
+    assert(_offset_up == 0, "");
     _lwm = 0;
     _hwm = _rm_max();
     memset(_RM_UP, 0xFF, sizeof(uintptr_t) * _rm_size);
@@ -299,7 +299,7 @@ class RegMask {
   virtual void Set_From(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
-    int reg_offset = reg - _offset;
+    int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < _rm_size * BitsPerWord, "sanity");
@@ -319,7 +319,7 @@ class RegMask {
   void Insert(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
-    int reg_offset = reg - _offset;
+    int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < _rm_size * BitsPerWord, "sanity");
@@ -333,7 +333,7 @@ class RegMask {
 
   // Remove register from mask
   void Remove(OptoReg::Name reg) {
-    int reg_offset = reg - _offset;
+    int reg_offset = reg - _offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < _rm_size * BitsPerWord, "");
@@ -342,7 +342,7 @@ class RegMask {
 
   // OR 'rm' into 'this'
   virtual void OR(const RegMask &rm) {
-    assert(_offset == rm._offset, "");
+    assert(_offset_up == rm._offset_up, "");
     assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // OR widens the live range
@@ -361,7 +361,7 @@ class RegMask {
 
   // AND 'rm' into 'this'
   virtual void AND(const RegMask &rm) {
-    assert(_offset == rm._offset, "");
+    assert(_offset_up == rm._offset_up, "");
     assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Do not evaluate words outside the current watermark range, as they are
@@ -382,7 +382,7 @@ class RegMask {
 
   // Subtract 'rm' from 'this'
   virtual void SUBTRACT(const RegMask &rm) {
-    assert(_offset == rm._offset, "");
+    assert(_offset_up == rm._offset_up, "");
     assert(_rm_size >= rm._rm_size, "");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
@@ -461,7 +461,7 @@ class RegMaskIterator {
         unsigned int next_bit = find_lowest_bit(_current_bits);
         assert(((_current_bits >> next_bit) & 0x1) == 1, "lowest bit must be set after shift");
         _current_bits = (_current_bits >> next_bit) - 1;
-        _reg = OptoReg::Name(_rm._offset + ((_next_index - 1) << RegMask::_LogWordBits) + next_bit);
+        _reg = OptoReg::Name(_rm._offset_bits() + ((_next_index - 1) << RegMask::_LogWordBits) + next_bit);
         return r;
       }
     }
@@ -537,15 +537,6 @@ class RegMaskStatic : public RegMask {
     return *this;
   }
 
-  static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
-    return (int)reg <= (int)(CHUNK_SIZE - size);
-  }
-  static bool can_represent_arg(OptoReg::Name reg) {
-    // NOTE: SlotsPerVecZ in computation reflects the need
-    //       to keep mask aligned for largest value (VecZ).
-    return can_represent(reg, SlotsPerVecZ);
-  }
-
 };
 
 class RegMaskGrowable : public RegMask {
@@ -584,7 +575,6 @@ class RegMaskGrowable : public RegMask {
   RegMaskGrowable(const RegMaskGrowable& rm);
 
   void Insert(OptoReg::Name reg) {
-    assert(_offset == 0, "");
     unsigned index = reg >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);
@@ -619,7 +609,6 @@ class RegMaskGrowable : public RegMask {
   }
 
   void Set_From(OptoReg::Name reg) {
-    assert(_offset == 0, "");
     unsigned index = reg >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);

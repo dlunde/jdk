@@ -1400,7 +1400,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
       // does not work for scalable size. We have to find adjacent scalable_reg_slots() bits
       // instead of SlotsPerVecA bits.
       assigned = mask.find_first_set(lrg, num_regs); // find highest valid reg
-      while (OptoReg::is_valid(assigned) && RegMaskStatic::can_represent(assigned)) {
+      while (OptoReg::is_valid(assigned)) {
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           return assigned;
