@@ -975,14 +975,15 @@ void Matcher::init_spill_mask( Node *ret ) {
 
   // Start at OptoReg::stack0()
   STACK_ONLY_mask.Clear();
-  OptoReg::Name init = OptoReg::stack2reg(0);
+  /* OptoReg::Name init = OptoReg::stack2reg(0); */
   // STACK_ONLY_mask is all stack bits
-  OptoReg::Name i;
-  for (i = init; RegMaskStatic::can_represent(i); i = OptoReg::add(i,1))
-    STACK_ONLY_mask.Insert(i);
-  // Also set the "infinite stack" bit.
-  STACK_ONLY_mask.set_AllStack();
+  STACK_ONLY_mask.Set_From(OptoReg::stack2reg(0));
+  /* for (i = init; RegMaskStatic::can_represent(i); i = OptoReg::add(i,1)) */
+  /*   STACK_ONLY_mask.Insert(i); */
+  /* // Also set the "infinite stack" bit. */
+  /* STACK_ONLY_mask.set_AllStack(); */
 
+  OptoReg::Name i;
   for (i = OptoReg::Name(0); i < OptoReg::Name(_last_Mach_Reg); i = OptoReg::add(i, 1)) {
     // Copy the register names over into the shared world.
     // SharedInfo::regName[i] = regName[i];

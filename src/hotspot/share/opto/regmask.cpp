@@ -470,13 +470,7 @@ void RegMask::dump(outputStream *st) const {
 RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
 
 RegMaskGrowable::RegMaskGrowable(const RegMask& rm)
-  : RegMask(rm._rm_size), _arena(Compile::current()->comp_arena()) {
-  _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm._rm_size);
-  _copy(rm,*this);
-}
+  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}
 
 RegMaskGrowable::RegMaskGrowable(const RegMaskGrowable& rm)
-  : RegMask(rm._rm_size), _arena(Compile::current()->comp_arena()) {
-  _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm._rm_size);
-  _copy(rm,*this);
-}
+  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}

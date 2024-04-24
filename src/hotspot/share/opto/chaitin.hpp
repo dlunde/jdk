@@ -128,7 +128,7 @@ public:
   // Get the last mask size computed, even if it does not match the
   // count of bits in the current mask.
   int get_invalid_mask_size() const { return _mask_size; }
-  const RegMask &mask() const { return _mask; }
+  const RegMaskGrowable &mask() const { return _mask; }
   void set_mask( const RegMask &rm ) { _mask = rm; debug_only(_msize_valid=0;)}
   void init_mask() { new(&_mask) RegMaskGrowable(); }
   void AND( const RegMask &rm ) { _mask.AND(rm); debug_only(_msize_valid=0;)}
