@@ -109,8 +109,8 @@ class RegMask {
 
   // Common copying functionality
   static void _copy(const RegMask& src, RegMask& dst) {
-    assert(src._offset == dst._offset, "");
-    assert(src._rm_size == dst._rm_size, "");
+    assert(src._offset == dst._offset, "must be handled outside _copy");
+    assert(src._rm_size == dst._rm_size, "must be handled outside _copy");
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
     for (unsigned i = 0; i < dst._rm_size; i++) {
@@ -173,7 +173,7 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm; i++) {
       tmp |= _RM_UP[i];
     }
-    assert(tmp || (!tmp && !is_AllStack()), ""); // !tmp => !is_AllStack()
+    assert(tmp || (!tmp && !is_AllStack()), "case not handled"); // !tmp => !is_AllStack()
     return tmp;
   }
 
