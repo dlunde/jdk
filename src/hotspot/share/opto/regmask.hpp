@@ -392,7 +392,9 @@ class RegMask {
     /* assert(_offset == rm._offset, ""); */
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     int rm_index_diff = _offset - rm._offset;
-    assert(((int)_rm_max() >= (int)rm._hwm - rm_index_diff) || !is_AllStack(), "");
+    assert(((int)_rm_max() >= (int)rm._rm_max() - rm_index_diff)
+        || (((int)_rm_max() >= (int)rm._hwm - rm_index_diff) && !rm.is_AllStack())
+        || !is_AllStack(), "");
     unsigned hwm = MIN2(_hwm, rm._hwm - rm_index_diff);
     unsigned lwm = MAX2(_lwm, rm._lwm - rm_index_diff);
     for (unsigned i = lwm; i <= hwm; i++) {
