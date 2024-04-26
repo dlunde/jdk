@@ -34,7 +34,7 @@ class RTMLockingCounters;
 //------------------------------BoxLockNode------------------------------------
 class BoxLockNode : public Node {
 private:
-  const int       _slot;   // stack slot
+  const int         _slot; // stack slot
   RegMaskGrowable _inmask; // OptoReg corresponding to stack slot
   enum {
     Regular = 0,       // Normal locking region

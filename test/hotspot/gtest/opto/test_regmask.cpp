@@ -136,7 +136,7 @@ TEST_VM(RegMask, SUBTRACT) {
   for (int i = 17; i < (int)rm1.rm_size_bits(); i++) {
     rm1.Insert(i);
   }
-  rm1.set_AllStack();
+  rm1.set_AllStack_new();
   ASSERT_TRUE(rm1.is_AllStack());
   rm2.SUBTRACT(rm1);
   contains_expected_num_of_registers(rm1, rm1.rm_size_bits() - 17);
@@ -172,8 +172,9 @@ TEST_VM(RegMask, is_bound_pair) {
   }
   // A pair with the AllStack bit does not count as a bound pair
   rm.Clear();
-  rm.Insert(rm.rm_size_bits() - 1);
-  rm.set_AllStack();
+  rm.Insert(RegMask::CHUNK_SIZE - 2);
+  rm.Insert(RegMask::CHUNK_SIZE - 1);
+  rm.set_AllStack_new();
   ASSERT_FALSE(rm.is_bound_pair());
 }
 
@@ -193,7 +194,7 @@ TEST_VM(RegMask, is_bound_set) {
     for (int j = rm.rm_size_bits() - size; j < (int)rm.rm_size_bits(); j++) {
         rm.Insert(j);
     }
-    rm.set_AllStack();
+    rm.set_AllStack_new();
     ASSERT_FALSE(rm.is_bound_set(size));
     rm.Clear();
   }

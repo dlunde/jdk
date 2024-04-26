@@ -1353,8 +1353,9 @@ void PhaseChaitin::Simplify( ) {
 }
 
 // Is 'reg' register legal for 'lrg'?
-static bool is_legal_reg(LRG &lrg, OptoReg::Name reg) {
-  if (lrg.mask().Member(reg)) {
+static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
+  if (reg >= chunk && reg < (chunk + RegMask::CHUNK_SIZE) &&
+      lrg.mask().Member(OptoReg::add(reg,-chunk))) {
     // RA uses OptoReg which represent the highest element of a registers set.
     // For example, vectorX (128bit) on x86 uses [XMM,XMMb,XMMc,XMMd] set
     // in which XMMd is used by RA to represent such vectors. A double value
@@ -1377,13 +1378,13 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg) {
   return false;
 }
 
-static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
+static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
 
   if (lrg.is_scalable()) {
     // a physical register is found
-    if (!lrg.mask().is_offset() && OptoReg::is_reg(assigned)) {
+    if (chunk == 0 && OptoReg::is_reg(assigned)) {
       return assigned;
     }
 
@@ -1399,7 +1400,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
       // does not work for scalable size. We have to find adjacent scalable_reg_slots() bits
       // instead of SlotsPerVecA bits.
       assigned = mask.find_first_set(lrg, num_regs); // find highest valid reg
-      while (OptoReg::is_valid(assigned)) {
+      while (OptoReg::is_valid(assigned) && RegMask::can_represent(assigned)) {
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           return assigned;
@@ -1423,7 +1424,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
 }
 
 // Choose a color using the biasing heuristic
-OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
+OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
 
   // Check for "at_risk" LRG's
   uint risk_lrg = _lrg_map.find(lrg._risk_bias);
@@ -1437,7 +1438,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     while ((datum = elements.next()) != 0) {
       OptoReg::Name reg = lrgs(datum).reg();
       // If this LRG's register is legal for us, choose it
-      if (is_legal_reg(lrg, reg))
+      if (is_legal_reg(lrg, reg, chunk))
         return reg;
     }
   }
@@ -1448,14 +1449,14 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     if(!_ifg->_yanked->test(copy_lrg)) {
       OptoReg::Name reg = lrgs(copy_lrg).reg();
       //  And it is legal for you,
-      if (is_legal_reg(lrg, reg))
+      if (is_legal_reg(lrg, reg, chunk))
         return reg;
-    } else if( !lrg.mask().is_offset() ) {
+    } else if( chunk == 0 ) {
       // Choose a color which is legal for him
       RegMaskGrowable tempmask = lrg.mask();
       tempmask.AND(lrgs(copy_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
-      OptoReg::Name reg = find_first_set(lrg, tempmask);
+      OptoReg::Name reg = find_first_set(lrg, tempmask, chunk);
       if (OptoReg::is_valid(reg))
         return reg;
     }
@@ -1464,7 +1465,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
   // If no bias info exists, just go with the register selection ordering
   if (lrg._is_vector || lrg.num_regs() == 2 || lrg.is_scalable()) {
     // Find an aligned set
-    return find_first_set(lrg, lrg.mask());
+    return OptoReg::add(find_first_set(lrg, lrg.mask(), chunk), chunk);
   }
 
   // CNC - Fun hack.  Alternate 1st and 2nd selection.  Enables post-allocate
@@ -1480,18 +1481,18 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     if( OptoReg::is_reg(reg2))
       reg = reg2;
   }
-  return reg;
+  return OptoReg::add( reg, chunk );
 }
 
 // Choose a color in the current chunk
-OptoReg::Name PhaseChaitin::choose_color( LRG &lrg ) {
-  assert( C->in_preserve_stack_slots() == 0 || lrg.mask().is_offset() || lrg._is_bound || lrg.mask().is_bound1() || !lrg.mask().Member(OptoReg::Name(_matcher._old_SP-1)), "must not allocate stack0 (inside preserve area)");
-  assert(C->out_preserve_stack_slots() == 0 || lrg.mask().is_offset() || lrg._is_bound || lrg.mask().is_bound1() || !lrg.mask().Member(OptoReg::Name(_matcher._old_SP+0)), "must not allocate stack0 (inside preserve area)");
+OptoReg::Name PhaseChaitin::choose_color( LRG &lrg, int chunk ) {
+  assert( C->in_preserve_stack_slots() == 0 || chunk != 0 || lrg._is_bound || lrg.mask().is_bound1() || !lrg.mask().Member(OptoReg::Name(_matcher._old_SP-1)), "must not allocate stack0 (inside preserve area)");
+  assert(C->out_preserve_stack_slots() == 0 || chunk != 0 || lrg._is_bound || lrg.mask().is_bound1() || !lrg.mask().Member(OptoReg::Name(_matcher._old_SP+0)), "must not allocate stack0 (inside preserve area)");
 
   if( lrg.num_regs() == 1 ||    // Common Case
       !lrg._fat_proj )          // Aligned+adjacent pairs ok
     // Use a heuristic to "bias" the color choice
-    return bias_color(lrg);
+    return bias_color(lrg, chunk);
 
   assert(!lrg._is_vector, "should be not vector here" );
   assert( lrg.num_regs() >= 2, "dead live ranges do not color" );
@@ -1499,9 +1500,8 @@ OptoReg::Name PhaseChaitin::choose_color( LRG &lrg ) {
   // Fat-proj case or misaligned double argument.
   assert(lrg.compute_mask_size() == lrg.num_regs() ||
          lrg.num_regs() == 2,"fat projs exactly color" );
-  assert( !lrg.mask().is_offset(), "always color in 1st chunk" );
+  assert( !chunk, "always color in 1st chunk" );
   // Return the highest element in the set.
-  assert(!lrg.mask().is_AllStack(), "");
   return lrg.mask().find_last_elem();
 }
 
@@ -1540,6 +1540,7 @@ uint PhaseChaitin::Select( ) {
     // be much clearer.  We arrive here IFF we have a stack-based
     // live range that cannot color in the current chunk, and it
     // has to move into the next free stack chunk.
+    int chunk = 0;              // Current chunk is first chunk
     retry_next_chunk:
 
     // Remove neighbor colors
@@ -1559,26 +1560,28 @@ uint PhaseChaitin::Select( ) {
         LRG &nlrg = lrgs(neighbor);
         OptoReg::Name nreg = nlrg.reg();
         // Only subtract masks in the same chunk
+        if (nreg >= chunk && nreg < chunk + RegMask::CHUNK_SIZE) {
 #ifndef PRODUCT
-        uint size = lrg->mask().Size();
-        RegMaskGrowable rm = lrg->mask();
+          uint size = lrg->mask().Size();
+          RegMask rm = lrg->mask();
 #endif
-        lrg->SUBTRACT(nlrg.mask());
+          lrg->SUBTRACT(nlrg.mask());
 #ifndef PRODUCT
-        if (trace_spilling() && lrg->mask().Size() != size) {
-          ttyLocker ttyl;
-          tty->print("L%d ", lidx);
-          rm.dump();
-          tty->print(" intersected L%d ", neighbor);
-          nlrg.mask().dump();
-          tty->print(" removed ");
-          rm.SUBTRACT(lrg->mask());
-          rm.dump();
-          tty->print(" leaving ");
-          lrg->mask().dump();
-          tty->cr();
+          if (trace_spilling() && lrg->mask().Size() != size) {
+            ttyLocker ttyl;
+            tty->print("L%d ", lidx);
+            rm.dump();
+            tty->print(" intersected L%d ", neighbor);
+            nlrg.mask().dump();
+            tty->print(" removed ");
+            rm.SUBTRACT(lrg->mask());
+            rm.dump();
+            tty->print(" leaving ");
+            lrg->mask().dump();
+            tty->cr();
+          }
+#endif
         }
-#endif
       }
     }
     //assert(is_allstack == lrg->mask().is_AllStack(), "nbrs must not change AllStackedness");
@@ -1589,14 +1592,15 @@ uint PhaseChaitin::Select( ) {
     }
 
     // Check if a color is available and if so pick the color
-    OptoReg::Name reg = choose_color( *lrg );
+    OptoReg::Name reg = choose_color( *lrg, chunk );
 
     //---------------
     // If we fail to color and the AllStack flag is set, trigger
     // a chunk-rollover event
-    if(!OptoReg::is_valid(reg) && is_allstack) {
+    if(!OptoReg::is_valid(OptoReg::add(reg,-chunk)) && is_allstack) {
       // Bump register mask up to next stack chunk
-      lrg->rollover();
+      chunk += RegMask::CHUNK_SIZE;
+      lrg->Set_All();
       goto retry_next_chunk;
     }
 
@@ -1612,6 +1616,8 @@ uint PhaseChaitin::Select( ) {
 
       if( reg >= _max_reg )     // Compute max register limit
         _max_reg = OptoReg::add(reg,1);
+      // Fold reg back into normal space
+      reg = OptoReg::add(reg,-chunk);
 
       // If the live range is not bound, then we actually had some choices
       // to make.  In this case, the mask has more bits in it than the colors
