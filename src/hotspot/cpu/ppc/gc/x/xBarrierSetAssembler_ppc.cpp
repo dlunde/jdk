@@ -401,7 +401,7 @@ OptoReg::Name XBarrierSetAssembler::refine_register(const Node* node, OptoReg::N
 
 class XSaveLiveRegisters {
   MacroAssembler* _masm;
-  RegMask _reg_mask;
+  RegMaskStatic _reg_mask;
   Register _result_reg;
   int _frame_size;
 
