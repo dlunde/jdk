@@ -357,7 +357,7 @@ class RegMask {
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < rm_size_bits(), "sanity");
-    assert(r < rm_size_bits()-1, "REMOVEME");
+    if (r == rm_size_bits()-1) { set_AllStack_new(); } // REMOVEME
     assert(valid_watermarks(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     if (index > _hwm) _hwm = index;

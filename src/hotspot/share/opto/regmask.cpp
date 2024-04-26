@@ -454,8 +454,8 @@ void RegMask::dump(outputStream *st) const {
 #endif
 
 void RegMask::SUBTRACT(const RegMask &rm) {
-  RegMaskGrowable tmp1(*this);
-  RegMaskGrowable tmp2(rm);
+  RegMaskStatic tmp1(*this);
+  RegMaskStatic tmp2(rm);
   assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
   unsigned hwm = MIN2(_hwm, rm._hwm);
   unsigned lwm = MAX2(_lwm, rm._lwm);
