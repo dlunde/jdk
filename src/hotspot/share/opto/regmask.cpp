@@ -462,6 +462,7 @@ void RegMask::SUBTRACT(const RegMask &rm) {
   for (unsigned i = lwm; i <= hwm; i++) {
     _RM_UP[i] &= ~rm._RM_UP[i];
   }
+  set_AllStack_new(is_AllStack_new() && !rm.is_AllStack_new());
   tmp1.SUBTRACT_new(tmp2);
   if (UseNewCode) { assert(tmp1.equals(*this),""); }
 }

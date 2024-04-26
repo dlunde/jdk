@@ -163,7 +163,7 @@ class RegMask {
     assert(reg < CHUNK_SIZE, "");
 
     unsigned r = (unsigned)reg;
-    auto ret = _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
+    bool ret = _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
     if (UseNewCode) { assert(ret == Member_new(reg), ""); }
     return ret;
   }
@@ -224,9 +224,9 @@ class RegMask {
       uintptr_t bits = _RM_UP[--i];
       if (bits) {
         auto ret = OptoReg::Name(_offset_bits() + (i << _LogWordBits) + find_highest_bit(bits));
-        if(is_AllStack()) {
-          if (UseNewCode) { assert( ret == OptoReg::Name(INT_MAX), ""); }
-        }
+        /* if(is_AllStack()) { */
+        /*   if (UseNewCode) { assert( ret == OptoReg::Name(INT_MAX), ""); } */
+        /* } */
         return ret;
       }
     }
@@ -298,7 +298,7 @@ class RegMask {
       result |= _RM_UP[i] & rm._RM_UP[i];
     }
     bool overlap_all_stack = is_AllStack() && rm.is_AllStack();
-    if (UseNewCode) { assert(result == (result || overlap_all_stack), ""); }
+    if (UseNewCode) { assert((bool)result == (result || overlap_all_stack), ""); }
     /* return result || overlap_all_stack; */
     return result;
   }
@@ -357,6 +357,7 @@ class RegMask {
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
     assert(r < rm_size_bits(), "sanity");
+    assert(r < rm_size_bits()-1, "REMOVEME");
     assert(valid_watermarks(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     if (index > _hwm) _hwm = index;
@@ -588,6 +589,12 @@ class RegMaskStatic : public RegMask {
     _hwm = _RM_MAX;
     while (_hwm > 0      && _RM_UP[_hwm] == 0) _hwm--;
     while ((_lwm < _hwm) && _RM_UP[_lwm] == 0) _lwm++;
+    // For historical reasons, this constructor uses the last bit of the mask
+    // itself as the _all_stack flag. We need to record this fact using the now
+    // separate _all_stack flag.
+    if (_RM_UP[_RM_MAX] & (uintptr_t(1) << _WordBitMask)) {
+      set_AllStack_new();
+    }
     assert(valid_watermarks(), "post-condition");
   }
 

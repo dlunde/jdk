@@ -1502,6 +1502,7 @@ OptoReg::Name PhaseChaitin::choose_color( LRG &lrg, int chunk ) {
          lrg.num_regs() == 2,"fat projs exactly color" );
   assert( !chunk, "always color in 1st chunk" );
   // Return the highest element in the set.
+  assert(!lrg.mask().is_AllStack(), "");
   return lrg.mask().find_last_elem();
 }
 
