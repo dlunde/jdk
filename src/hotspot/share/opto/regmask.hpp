@@ -120,8 +120,7 @@ class RegMask {
     assert(dst.valid_watermarks(), "post-condition");
   }
 
-  public:
-  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord }; // TODO Move to private and expose _rm_size instead
+ public:
 
   unsigned int rm_size() const { return _rm_size; }
   unsigned int rm_size_bits() const { return _rm_size * BitsPerWord; }
