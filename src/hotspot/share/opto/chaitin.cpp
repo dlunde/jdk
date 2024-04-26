@@ -1551,6 +1551,8 @@ uint PhaseChaitin::Select( ) {
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
       uint neighbor;
+      RegMaskGrowable test(lrg->mask());
+      test.set_offset_bits(chunk);
       while ((neighbor = elements.next()) != 0) {
         // Note that neighbor might be a spill_reg.  In this case, exclusion
         // of its color will be a no-op, since the spill_reg chunk is in outer
@@ -1582,6 +1584,10 @@ uint PhaseChaitin::Select( ) {
             tty->cr();
           }
 #endif
+        }
+        if (UseNewCode) {
+          test.SUBTRACT_ignore_AllStack(nlrg.mask());
+          assert(test.equals_with_offset(lrg->mask(), chunk), "");
         }
       }
     }

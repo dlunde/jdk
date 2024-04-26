@@ -448,23 +448,34 @@ void RegMask::dump(outputStream *st) const {
       OptoReg::dump(last, st);
     }
   }
-  if (is_AllStack()) st->print("...");
+  if (is_AllStack()) {
+    st->print(",");
+    OptoReg::dump(_offset_bits() + rm_size_bits(), st);
+    st->print("...");
+  }
   st->print("]");
 }
+
+bool RegMask::equals_with_offset(const RegMask &rm, int offset) const {
+  RegMaskGrowable tmp(rm);
+  tmp.set_offset_bits(offset);
+  return equals(tmp);
+}
+
 #endif
 
 void RegMask::SUBTRACT(const RegMask &rm) {
-  RegMaskStatic tmp1(*this);
-  RegMaskStatic tmp2(rm);
+  /* RegMaskStatic tmp1(*this); */
+  /* RegMaskStatic tmp2(rm); */
   assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
   unsigned hwm = MIN2(_hwm, rm._hwm);
   unsigned lwm = MAX2(_lwm, rm._lwm);
   for (unsigned i = lwm; i <= hwm; i++) {
     _RM_UP[i] &= ~rm._RM_UP[i];
   }
-  set_AllStack_new(is_AllStack_new() && !rm.is_AllStack_new());
-  tmp1.SUBTRACT_new(tmp2);
-  if (UseNewCode) { assert(tmp1.equals(*this),""); }
+  set_AllStack(is_AllStack() && !rm.is_AllStack());
+  /* tmp1.SUBTRACT_new(tmp2); */
+  /* if (UseNewCode) { assert(tmp1.equals(*this),""); } */
 }
 
 RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
