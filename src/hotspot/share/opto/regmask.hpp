@@ -34,6 +34,7 @@
 
 class LRG;
 class RegMaskStatic;
+class RegMaskGrowable;
 
 //-------------Non-zero bit search methods used by RegMask---------------------
 // Find lowest 1, undefined if empty/0
@@ -124,10 +125,11 @@ class RegMask {
   }
 
  public:
+  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
   unsigned int rm_size() const { return _rm_size; }
   unsigned int rm_size_bits() const {
-    assert(_rm_size == CHUNK_SIZE, "");
+    assert(_rm_size * BitsPerWord == CHUNK_SIZE, "");
     return _rm_size * BitsPerWord;
   }
 
@@ -162,7 +164,7 @@ class RegMask {
 
     unsigned r = (unsigned)reg;
     auto ret = _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
-    assert(ret == Member_new(reg), "");
+    if (UseNewCode) { assert(ret == Member_new(reg), ""); }
     return ret;
   }
   bool Member_new(OptoReg::Name reg) const {
@@ -178,7 +180,7 @@ class RegMask {
   // unbounded in size.  Returns FALSE if mask is finite size.
   bool is_AllStack() const {
     auto ret = (_RM_UP[_RM_MAX] & (uintptr_t(1) << _WordBitMask)) != 0;
-    assert(ret == is_AllStack_new(), "");
+    if (UseNewCode) { assert(ret == is_AllStack_new(), ""); }
     return ret;
   }
   bool is_AllStack_new() const { return _all_stack; }
@@ -223,7 +225,7 @@ class RegMask {
       if (bits) {
         auto ret = OptoReg::Name(_offset_bits() + (i << _LogWordBits) + find_highest_bit(bits));
         if(is_AllStack()) {
-          assert( ret == OptoReg::Name(INT_MAX), "");
+          if (UseNewCode) { assert( ret == OptoReg::Name(INT_MAX), ""); }
         }
         return ret;
       }
@@ -296,7 +298,7 @@ class RegMask {
       result |= _RM_UP[i] & rm._RM_UP[i];
     }
     bool overlap_all_stack = is_AllStack() && rm.is_AllStack();
-    assert(result == (result || overlap_all_stack), "");
+    if (UseNewCode) { assert(result == (result || overlap_all_stack), ""); }
     /* return result || overlap_all_stack; */
     return result;
   }
@@ -420,18 +422,7 @@ class RegMask {
   }
 
   // Subtract 'rm' from 'this'
-  void SUBTRACT(const RegMask &rm) {
-    RegMaskGrowable tmp1(*this);
-    RegMaskGrowable tmp2(rm);
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    unsigned hwm = MIN2(_hwm, rm._hwm);
-    unsigned lwm = MAX2(_lwm, rm._lwm);
-    for (unsigned i = lwm; i <= hwm; i++) {
-      _RM_UP[i] &= ~rm._RM_UP[i];
-    }
-    tmp1.SUBTRACT_new(tmp2);
-    assert(tmp1.equals(*this),"");
-  }
+  virtual void SUBTRACT(const RegMask &rm);
   virtual void SUBTRACT_new(const RegMask &rm) {
     /* assert(_offset == rm._offset, ""); */
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
@@ -448,7 +439,7 @@ class RegMask {
       memset(_RM_UP + (rm._rm_size - rm_index_diff), 0, sizeof(uintptr_t) * (_rm_size - (rm._rm_size - rm_index_diff)));
       _hwm = rm._rm_max() - rm_index_diff;
     }
-    set_AllStack(is_AllStack() && !rm.is_AllStack());
+    set_AllStack_new(is_AllStack_new() && !rm.is_AllStack_new());
     assert(valid_watermarks(), "sanity");
   }
 
@@ -492,6 +483,16 @@ class RegMask {
   static const RegMaskStatic Empty;   // Common empty mask
   static const RegMaskStatic All;     // Common all mask
 
+  static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
+    // NOTE: MAX2(1U,size) in computation reflects the usage of the last
+    //       bit of the regmask as an infinite stack flag.
+    return (int)reg < (int)(CHUNK_SIZE - MAX2(1U,size));
+  }
+  static bool can_represent_arg(OptoReg::Name reg) {
+    // NOTE: SlotsPerVecZ in computation reflects the need
+    //       to keep mask aligned for largest value (VecZ).
+    return can_represent(reg, SlotsPerVecZ);
+  }
 };
 
 class RegMaskIterator {

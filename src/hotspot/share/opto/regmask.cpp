@@ -453,6 +453,18 @@ void RegMask::dump(outputStream *st) const {
 }
 #endif
 
+void RegMask::SUBTRACT(const RegMask &rm) {
+  RegMaskGrowable tmp1(*this);
+  RegMaskGrowable tmp2(rm);
+  assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+  unsigned hwm = MIN2(_hwm, rm._hwm);
+  unsigned lwm = MAX2(_lwm, rm._lwm);
+  for (unsigned i = lwm; i <= hwm; i++) {
+    _RM_UP[i] &= ~rm._RM_UP[i];
+  }
+  tmp1.SUBTRACT_new(tmp2);
+  if (UseNewCode) { assert(tmp1.equals(*this),""); }
+}
 
 RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
 

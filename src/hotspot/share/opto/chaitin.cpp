@@ -1563,7 +1563,7 @@ uint PhaseChaitin::Select( ) {
         if (nreg >= chunk && nreg < chunk + RegMask::CHUNK_SIZE) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();
-          RegMask rm = lrg->mask();
+          RegMaskGrowable rm = lrg->mask();
 #endif
           lrg->SUBTRACT(nlrg.mask());
 #ifndef PRODUCT
