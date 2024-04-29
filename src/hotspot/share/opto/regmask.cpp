@@ -457,12 +457,6 @@ void RegMask::dump(outputStream *st) const {
   st->print("]");
 }
 
-bool RegMask::equals_with_offset(const RegMask &rm, int offset) const {
-  RegMaskGrowable tmp(rm);
-  tmp.set_offset_bits(offset);
-  return equals(tmp);
-}
-
 #endif
 
 void RegMask::SUBTRACT(const RegMask &rm) {

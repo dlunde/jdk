@@ -1585,9 +1585,13 @@ uint PhaseChaitin::Select( ) {
           }
 #endif
         }
-        if (UseNewCode) {
-          test.SUBTRACT_new(nlrg.mask());
-          assert(test.equals_with_offset(lrg->mask(), chunk), "");
+        if (UseNewCode && nreg < LRG::SPILL_REG ) {
+          RegMaskGrowable nlrg_test(nlrg.mask());
+          nlrg_test.set_offset_bits(nreg / RegMask::CHUNK_SIZE * RegMask::CHUNK_SIZE);
+          test.SUBTRACT_inner(nlrg_test);
+          RegMaskGrowable lrg_test(lrg->mask());
+          lrg_test.set_offset_bits(chunk);
+          assert(test.equals(lrg_test), "");
         }
       }
     }
