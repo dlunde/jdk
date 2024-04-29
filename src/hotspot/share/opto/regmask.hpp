@@ -170,7 +170,8 @@ class RegMask {
     int reg_offset = reg - _offset_bits();
     if(reg_offset < 0) { return false; }
     unsigned r = (unsigned)reg_offset;
-    if (r >= rm_size_bits()) { return is_AllStack(); }
+    /* if (r >= rm_size_bits()) { return is_AllStack(); } */
+    if (r >= rm_size_bits()) { return false; }
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
 
@@ -686,7 +687,12 @@ class RegMaskGrowable : public RegMask {
   RegMaskGrowable(const RegMaskGrowable& rm);
 
   void Insert(OptoReg::Name reg) {
-    unsigned index = reg >> _LogWordBits;
+    int reg_offset = reg - _offset_bits();
+    assert(reg_offset >= 0, "");
+    unsigned r = (unsigned)reg_offset;
+    assert(r < rm_size_bits(), "sanity");
+    assert(valid_watermarks(), "pre-condition");
+    unsigned index = r >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);
     RegMask::Insert(reg);

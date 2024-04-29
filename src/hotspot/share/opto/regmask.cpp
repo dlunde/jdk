@@ -247,7 +247,6 @@ OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
   for (unsigned i = _lwm; i <= _hwm; i++) {
     if (_RM_UP[i]) {                // Found some bits
       // Convert to bit number, return hi bit in pair
-      assert(_offset_bits() == 0, "");
       return OptoReg::Name(_offset_bits() + (i<<_LogWordBits) + find_lowest_bit(_RM_UP[i]) + (size - 1));
     }
   }
@@ -447,7 +446,7 @@ void RegMask::dump(outputStream *st) const {
       st->print("-");
       OptoReg::dump(last, st);
     }
-    if (is_AllStack()) st->print("...");
+    /* if (is_AllStack()) st->print("..."); */
   }
   if (is_AllStack_new()) {
     st->print(",");

@@ -133,6 +133,7 @@ public:
   void init_mask() { new(&_mask) RegMaskGrowable(); }
   void AND( const RegMask &rm ) { _mask.AND(rm); debug_only(_msize_valid=0;)}
   void SUBTRACT( const RegMask &rm ) { _mask.SUBTRACT(rm); debug_only(_msize_valid=0;)}
+  void SUBTRACT_inner( const RegMask &rm ) { _mask.SUBTRACT_inner(rm); debug_only(_msize_valid=0;)}
   void Clear()   { _mask.Clear()  ; debug_only(_msize_valid=1); _mask_size = 0; }
   void Set_All() { _mask.Set_All(); debug_only(_msize_valid=1); _mask_size = _mask.rm_size_bits(); }
   void rollover() { _mask.rollover(); debug_only(_msize_valid=1); _mask_size = _mask.rm_size_bits(); }
