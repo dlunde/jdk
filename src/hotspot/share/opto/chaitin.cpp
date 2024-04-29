@@ -1586,7 +1586,7 @@ uint PhaseChaitin::Select( ) {
 #endif
         }
         if (UseNewCode) {
-          test.SUBTRACT_ignore_AllStack(nlrg.mask());
+          test.SUBTRACT_new(nlrg.mask());
           assert(test.equals_with_offset(lrg->mask(), chunk), "");
         }
       }
