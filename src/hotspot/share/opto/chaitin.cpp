@@ -1419,7 +1419,8 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           assert(test.is_valid_reg(assigned_new, num_regs), "assigned_new: %d", assigned_new);
-          assert(assigned_new - chunk == assigned, "assigned_new: %d, assigned: %d, chunk: %d", assigned_new, assigned, chunk);
+          assert((assigned_new == -1 && assigned == -1)
+              || assigned_new - chunk == assigned, "assigned_new: %d, assigned: %d, chunk: %d", assigned_new, assigned, chunk);
           return assigned;
         } else {
           assert(!test.is_valid_reg(assigned_new, num_regs), "assigned_new: %d, num_regs: %d", assigned_new, num_regs);
@@ -1438,7 +1439,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
       num_regs = lrg.scalable_reg_slots();
       mask.clear_to_sets(num_regs);
       test.clear_to_sets(num_regs);
-      assert((test.find_first_set(lrg, num_regs) - chunk) == mask.find_first_set(lrg, num_regs), "chunk: %d", chunk);
+      assert((test.find_first_set(lrg, num_regs) == -1 && mask.find_first_set(lrg, num_regs) == -1) || (test.find_first_set(lrg, num_regs) - chunk) == mask.find_first_set(lrg, num_regs), "chunk: %d", chunk);
       return mask.find_first_set(lrg, num_regs);
     }
   }
