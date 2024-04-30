@@ -1358,7 +1358,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
   test.set_offset_bits(chunk);
   if (reg >= chunk && reg < (chunk + RegMask::CHUNK_SIZE) &&
       lrg.mask().Member(OptoReg::add(reg,-chunk))) {
-    if (UseNewCode) { assert(test.Member_new(reg), ""); }
+    assert(test.Member_new(reg), "");
     // RA uses OptoReg which represent the highest element of a registers set.
     // For example, vectorX (128bit) on x86 uses [XMM,XMMb,XMMc,XMMd] set
     // in which XMMd is used by RA to represent such vectors. A double value
@@ -1377,7 +1377,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
     int mask = lrg.num_regs()-1;
     if ((reg&mask) == mask)
       return true;
-  } else { if (UseNewCode) { assert(!test.Member_new(reg), ""); } }
+  } else { assert(!test.Member_new(reg), ""); }
   return false;
 }
 
@@ -1389,14 +1389,12 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
   OptoReg::Name assigned_new = test.find_first_set(lrg, num_regs);
-  if (UseNewCode) { assert(assigned_new - chunk == assigned, ""); }
+  assert(assigned_new - chunk == assigned, ""); 
 
   if (lrg.is_scalable()) {
     // a physical register is found
     // chunk == 0 can be removed here later on
-    if (UseNewCode) {
-      if (OptoReg::is_reg(assigned_new)) { assert(chunk == 0, ""); }
-    }
+    if (OptoReg::is_reg(assigned_new)) { assert(chunk == 0, ""); }
     if (chunk == 0 && OptoReg::is_reg(assigned)) {
       return assigned;
     }
@@ -1420,7 +1418,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           assert(test.is_valid_reg(assigned_new, num_regs), "");
-          if (UseNewCode) { assert(assigned_new - chunk == assigned, ""); }
+          assert(assigned_new - chunk == assigned, "");
           return assigned;
         } else {
           assert(!test.is_valid_reg(assigned_new, num_regs), "");
@@ -1511,7 +1509,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
     lrg.Insert(reg);
     test.Insert(reg_new);
     if( OptoReg::is_reg(reg2)) {
-      assert(OptoReg::is_reg(reg2_new - test.rm_size_bits()), "");
+      assert(OptoReg::is_reg(reg2_new - chunk), "");
       reg = reg2;
       reg_new = reg2_new;
     }
@@ -1621,7 +1619,7 @@ uint PhaseChaitin::Select( ) {
           }
 #endif
         }
-        if (UseNewCode && nreg < LRG::SPILL_REG ) {
+        if (nreg < LRG::SPILL_REG ) {
           RegMaskGrowable nlrg_test(nlrg.mask());
           nlrg_test.set_offset_bits(nreg / RegMask::CHUNK_SIZE * RegMask::CHUNK_SIZE);
           test.SUBTRACT_inner(nlrg_test);
@@ -1636,12 +1634,10 @@ uint PhaseChaitin::Select( ) {
     assert(!lrg->_is_vector || !lrg->_fat_proj, "sanity");
     if (lrg->num_regs() > 1 && !lrg->_fat_proj) {
       lrg->clear_to_sets();
-      if (UseNewCode) {
-        test.clear_to_sets(lrg->num_regs());
-        RegMaskGrowable lrg_test(lrg->mask());
-        lrg_test.set_offset_bits(chunk);
-        assert(test.equals(lrg_test), "");
-      }
+      test.clear_to_sets(lrg->num_regs());
+      RegMaskGrowable lrg_test(lrg->mask());
+      lrg_test.set_offset_bits(chunk);
+      assert(test.equals(lrg_test), "");
     }
 
     // Check if a color is available and if so pick the color
