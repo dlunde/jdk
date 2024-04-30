@@ -1358,7 +1358,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
   test.set_offset_bits(chunk);
   if (reg >= chunk && reg < (chunk + RegMask::CHUNK_SIZE) &&
       lrg.mask().Member(OptoReg::add(reg,-chunk))) {
-    assert(test.Member_new(reg), "");
+    assert(test.Member_new(reg), "reg: %d, chunk: %d", reg, chunk);
     // RA uses OptoReg which represent the highest element of a registers set.
     // For example, vectorX (128bit) on x86 uses [XMM,XMMb,XMMc,XMMd] set
     // in which XMMd is used by RA to represent such vectors. A double value
@@ -1377,7 +1377,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg, int chunk) {
     int mask = lrg.num_regs()-1;
     if ((reg&mask) == mask)
       return true;
-  } else { assert(!test.Member_new(reg), ""); }
+  } else { assert(!test.Member_new(reg), "reg: %d, chunk: %d", reg, chunk); }
   return false;
 }
 
@@ -1389,12 +1389,13 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
   OptoReg::Name assigned_new = test.find_first_set(lrg, num_regs);
-  assert(assigned_new - chunk == assigned, ""); 
+  assert((assigned_new == -1 && assigned == -1)
+      || (assigned_new - chunk == assigned), "chunk: %d, assigned_new: %d, assigned: %d", chunk, assigned_new, assigned); 
 
   if (lrg.is_scalable()) {
     // a physical register is found
     // chunk == 0 can be removed here later on
-    if (OptoReg::is_reg(assigned_new)) { assert(chunk == 0, ""); }
+    if (OptoReg::is_reg(assigned_new)) { assert(chunk == 0, "chunk: %d", chunk); }
     if (chunk == 0 && OptoReg::is_reg(assigned)) {
       return assigned;
     }
@@ -1413,15 +1414,15 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
       assigned = mask.find_first_set(lrg, num_regs); // find highest valid reg
       assigned_new = test.find_first_set(lrg, num_regs); // find highest valid reg
       while (OptoReg::is_valid(assigned) && RegMask::can_represent(assigned)) { // Remove can_represent check?
-        assert(assigned < (int)mask.rm_size_bits(), "");
-        assert(OptoReg::is_valid(assigned_new), "");
+        assert(assigned < (int)mask.rm_size_bits(), "assigned: %d", assigned);
+        assert(OptoReg::is_valid(assigned_new), "assigned_new: %d", assigned_new);
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
-          assert(test.is_valid_reg(assigned_new, num_regs), "");
-          assert(assigned_new - chunk == assigned, "");
+          assert(test.is_valid_reg(assigned_new, num_regs), "assigned_new: %d", assigned_new);
+          assert(assigned_new - chunk == assigned, "assigned_new: %d, assigned: %d, chunk: %d", assigned_new, assigned, chunk);
           return assigned;
         } else {
-          assert(!test.is_valid_reg(assigned_new, num_regs), "");
+          assert(!test.is_valid_reg(assigned_new, num_regs), "assigned_new: %d, num_regs: %d", assigned_new, num_regs);
           // Remove more for each iteration
           mask.Remove(assigned - num_regs + 1); // Unmask the lowest reg
           test.Remove(assigned_new - num_regs + 1); // Unmask the lowest reg
@@ -1437,7 +1438,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask, int chunk) {
       num_regs = lrg.scalable_reg_slots();
       mask.clear_to_sets(num_regs);
       test.clear_to_sets(num_regs);
-      assert((test.find_first_set(lrg, num_regs) - chunk) == mask.find_first_set(lrg, num_regs), "");
+      assert((test.find_first_set(lrg, num_regs) - chunk) == mask.find_first_set(lrg, num_regs), "chunk: %d", chunk);
       return mask.find_first_set(lrg, num_regs);
     }
   }
@@ -1499,7 +1500,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
   test.set_offset_bits(chunk);
   OptoReg::Name reg_new = test.find_first_elem();
   if( (++_alternate & 1) && OptoReg::is_valid(reg) ) {
-    assert( OptoReg::is_valid(reg_new), "");
+    assert( OptoReg::is_valid(reg_new), "reg_new: %d", reg_new);
     // This 'Remove; find; Insert' idiom is an expensive way to find the
     // SECOND element in the mask.
     lrg.Remove(reg);
@@ -1509,12 +1510,13 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg, int chunk ) {
     lrg.Insert(reg);
     test.Insert(reg_new);
     if( OptoReg::is_reg(reg2)) {
-      assert(OptoReg::is_reg(reg2_new - chunk), "");
+      assert(OptoReg::is_reg(reg2_new - chunk), "reg2_new: %d, chunk: %d", reg2_new, chunk);
       reg = reg2;
       reg_new = reg2_new;
     }
   }
-  assert(reg_new - chunk == reg, "");
+  assert((reg_new == -1 && reg == -1)
+      || (reg_new - chunk == reg), "reg2_new: %d, reg: %d, chunk: %d", reg_new, reg, chunk);
   return OptoReg::add( reg, chunk );
 }
 
@@ -1625,7 +1627,7 @@ uint PhaseChaitin::Select( ) {
           test.SUBTRACT_inner(nlrg_test);
           RegMaskGrowable lrg_test(lrg->mask());
           lrg_test.set_offset_bits(chunk);
-          assert(test.equals(lrg_test), "");
+          assert(test.equals(lrg_test), "chunk: %d", chunk);
         }
       }
     }
@@ -1637,7 +1639,7 @@ uint PhaseChaitin::Select( ) {
       test.clear_to_sets(lrg->num_regs());
       RegMaskGrowable lrg_test(lrg->mask());
       lrg_test.set_offset_bits(chunk);
-      assert(test.equals(lrg_test), "");
+      assert(test.equals(lrg_test), "chunk: %d", chunk);
     }
 
     // Check if a color is available and if so pick the color
