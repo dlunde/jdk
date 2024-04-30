@@ -121,11 +121,9 @@ class RegMask {
   }
 
  public:
-  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
   unsigned int rm_size() const { return _rm_size; }
   unsigned int rm_size_bits() const {
-    assert(_rm_size * BitsPerWord == CHUNK_SIZE, "");
     return _rm_size * BitsPerWord;
   }
 
@@ -504,16 +502,16 @@ class RegMask {
   static const RegMaskStatic Empty;   // Common empty mask
   static const RegMaskStatic All;     // Common all mask
 
-  static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
-    // NOTE: MAX2(1U,size) in computation reflects the usage of the last
-    //       bit of the regmask as an infinite stack flag.
-    return (int)reg < (int)(CHUNK_SIZE - MAX2(1U,size));
-  }
-  static bool can_represent_arg(OptoReg::Name reg) {
-    // NOTE: SlotsPerVecZ in computation reflects the need
-    //       to keep mask aligned for largest value (VecZ).
-    return can_represent(reg, SlotsPerVecZ);
-  }
+  /* static bool can_represent(OptoReg::Name reg, unsigned int size = 1) { */
+  /*   // NOTE: MAX2(1U,size) in computation reflects the usage of the last */
+  /*   //       bit of the regmask as an infinite stack flag. */
+  /*   return (int)reg < (int)(CHUNK_SIZE - MAX2(1U,size)); */
+  /* } */
+  /* static bool can_represent_arg(OptoReg::Name reg) { */
+  /*   // NOTE: SlotsPerVecZ in computation reflects the need */
+  /*   //       to keep mask aligned for largest value (VecZ). */
+  /*   return can_represent(reg, SlotsPerVecZ); */
+  /* } */
 };
 
 class RegMaskIterator {
