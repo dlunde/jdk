@@ -700,9 +700,9 @@ private:
   // Return TRUE if any spills occurred.
   uint Select( );
   // Helper function for select which allows biased coloring
-  OptoReg::Name choose_color( LRG &lrg, int chunk );
+  OptoReg::Name choose_color( LRG &lrg );
   // Helper function which implements biasing heuristic
-  OptoReg::Name bias_color( LRG &lrg, int chunk );
+  OptoReg::Name bias_color( LRG &lrg );
 
   // Split uncolorable live ranges
   // Return new number of live ranges
