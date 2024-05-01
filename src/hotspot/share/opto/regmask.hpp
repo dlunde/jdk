@@ -109,12 +109,21 @@ class RegMask {
 
   // Common copying functionality
   static void _copy(const RegMask& src, RegMask& dst) {
-    assert(src._offset == dst._offset, "must be handled outside _copy");
-    assert(src._rm_size == dst._rm_size, "must be handled outside _copy");
+    assert(dst._offset == src._offset, "must be handled outside _copy");
+    assert(dst._rm_size >= src._rm_size, "must be handled outside _copy");
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
-    for (unsigned i = 0; i < dst._rm_size; i++) {
+    for (unsigned i = 0; i < src._rm_size; i++) {
       dst._RM_UP[i] = src._RM_UP[i];
+    }
+    if (src._rm_size < dst._rm_size ) {
+      int value = 0;
+      if (src.is_AllStack()) {
+        value = 0xFF;
+        dst._hwm = dst._rm_max();
+      }
+      memset(dst._RM_UP + src._rm_size, value,
+          sizeof(uintptr_t) * (dst._rm_size - src._rm_size));
     }
     dst.set_AllStack_new(src.is_AllStack_new());
     assert(dst.valid_watermarks(), "post-condition");
@@ -384,7 +393,6 @@ class RegMask {
       _RM_UP[i] |= rm._RM_UP[i];
     }
     if (rm.is_AllStack() && rm._rm_size < _rm_size ) {
-      assert(false,"");
       memset(_RM_UP + rm._rm_size, 0xFF, sizeof(uintptr_t) * (_rm_size - rm._rm_size));
       _hwm = _rm_max();
     }
@@ -402,15 +410,15 @@ class RegMask {
     for (unsigned i = _lwm; i <= _hwm && i < rm._rm_size; i++) {
       _RM_UP[i] &= rm._RM_UP[i];
     }
+    if (!rm.is_AllStack() && _hwm > rm._rm_max() ) {
+      memset(_RM_UP + rm._rm_size, 0, sizeof(uintptr_t) * (_hwm - rm._rm_max()));
+      _hwm = rm._rm_max();
+    }
     // Narrow the watermarks if &rm spans a narrower range.
     // Update after to ensure non-overlapping words are zeroed out.
     if (_lwm < rm._lwm) _lwm = rm._lwm;
-    if (_hwm > rm._hwm) _hwm = rm._hwm;
-    if (!rm.is_AllStack() && rm._rm_size < _rm_size ) {
-      assert(false,"");
-      memset(_RM_UP + rm._rm_size, 0, sizeof(uintptr_t) * (_rm_size - rm._rm_size));
-      _hwm = rm._rm_max();
-    }
+    if (_hwm > rm._hwm
+        && !(rm.is_AllStack() && _hwm > rm._rm_max())) _hwm = rm._hwm;
     set_AllStack_new(is_AllStack_new() && rm.is_AllStack_new());
     assert(valid_watermarks(), "sanity");
   }
@@ -462,7 +470,7 @@ class RegMask {
   }
 
   void rollover() {
-    assert(is_AllStack_only(),"");
+    assert(is_AllStack_only(),""); // Problematic
     _offset += _rm_size;
     Set_All_From_Offset();
   }
@@ -688,7 +696,6 @@ class RegMaskGrowable : public RegMask {
     int reg_offset = reg - offset_bits();
     assert(reg_offset >= 0, "");
     unsigned r = (unsigned)reg_offset;
-    assert(r < rm_size_bits(), "sanity");
     assert(valid_watermarks(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     unsigned int min_size = index + 1;

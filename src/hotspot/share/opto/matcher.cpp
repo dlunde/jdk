@@ -221,8 +221,8 @@ void Matcher::match( ) {
   BasicType *sig_bt        = NEW_RESOURCE_ARRAY( BasicType, argcnt );
   VMRegPair *vm_parm_regs  = NEW_RESOURCE_ARRAY( VMRegPair, argcnt );
   _parm_regs               = NEW_RESOURCE_ARRAY( OptoRegPair, argcnt );
-  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMaskStatic, argcnt );
-  new(_calling_convention_mask) RegMaskStatic[argcnt];
+  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMaskGrowable, argcnt );
+  new(_calling_convention_mask) RegMaskGrowable[argcnt];
   uint i;
   for( i = 0; i<argcnt; i++ ) {
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();

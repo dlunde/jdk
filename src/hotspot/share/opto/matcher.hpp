@@ -317,7 +317,7 @@ public:
   OptoReg::Name _out_arg_limit;
 
   OptoRegPair *_parm_regs;        // Array of machine registers per argument
-  RegMaskStatic *_calling_convention_mask; // Array of RegMasks per argument
+  RegMaskGrowable *_calling_convention_mask; // Array of RegMasks per argument
 
   // Does matcher have a match rule for this ideal node?
   static bool has_match_rule(int opcode);

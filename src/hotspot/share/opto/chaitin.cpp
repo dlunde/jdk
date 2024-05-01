@@ -1479,7 +1479,8 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     lrg.Remove(reg);
     OptoReg::Name reg2 = lrg.mask().find_first_elem();
     lrg.Insert(reg);
-    if( OptoReg::is_reg(reg2 - lrg.mask().offset_bits())) {
+    if(OptoReg::is_valid(reg2)
+        && OptoReg::is_reg(reg2 - lrg.mask().offset_bits())) {
       reg = reg2;
     }
   }
