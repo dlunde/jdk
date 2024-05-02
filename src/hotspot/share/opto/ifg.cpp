@@ -639,7 +639,7 @@ bool PhaseChaitin::remove_node_if_not_used(Block* b, uint location, Node* n, uin
  * block. If we find a low to high transition, we record it.
  */
 void PhaseChaitin::check_for_high_pressure_transition_at_fatproj(uint& block_reg_pressure, uint location, LRG& lrg, Pressure& pressure, const int op_regtype) {
-  RegMaskStatic mask_tmp = lrg.mask();
+  RegMaskGrowable mask_tmp = lrg.mask();
   mask_tmp.AND(*Matcher::idealreg2regmask[op_regtype]);
   pressure.check_pressure_at_fatproj(location, mask_tmp);
 }

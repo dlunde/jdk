@@ -1380,7 +1380,7 @@ MachNode *Matcher::match_sfpt( SafePointNode *sfpt ) {
     // and over the entire method.
     for( i = 0; i < argcnt; i++ ) {
       // Address of incoming argument mask to fill in
-      RegMask *rm = &mcall->_in_rms[i+TypeFunc::Parms];
+      RegMaskGrowable *rm = &mcall->_in_rms[i+TypeFunc::Parms];
       VMReg first = parm_regs[i].first();
       VMReg second = parm_regs[i].second();
       if(!first->is_valid() &&
