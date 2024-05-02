@@ -52,7 +52,7 @@ static unsigned int find_highest_bit(uintptr_t mask) {
 // just a collection of Register numbers.
 
 // The ADLC defines 2 macros, RM_SIZE and FORALL_BODY.
-// RM_SIZE is the size of a register mask in 32-bit words.
+// RM_SIZE is the standard size of a register mask in 32-bit words.
 // FORALL_BODY replicates a BODY macro once per word in the register mask.
 // The usage is somewhat clumsy and limited to the regmask.[h,c]pp files.
 // However, it means the ADLC can redefine the unroll macro and all loops
@@ -73,11 +73,7 @@ class RegMask {
   static const unsigned int _RM_MAX      = _RM_SIZE - 1U;
 
   union {
-    // Array of Register Mask bits.  This array is large enough to cover
-    // all the machine registers and all parameters that need to be passed
-    // on the stack (stack registers) up to some interesting limit.  Methods
-    // that need more parameters will NOT be compiled.  On Intel, the limit
-    // is something like 90+ parameters.
+    // Array of Register Mask bits. RegMask subclasses handle the allocation.
     int*       _RM_I;
     uintptr_t* _RM_UP;
   };
@@ -312,6 +308,7 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
+  // Fill a register mask with 1's from the given register.
   virtual void Set_All_From(OptoReg::Name reg) {
     assert(reg != OptoReg::Bad, "sanity");
     assert(reg != OptoReg::Special, "sanity");
@@ -410,7 +407,7 @@ class RegMask {
   }
 
   // Subtract 'rm' from 'this'. Unlike other operations such as AND and OR,
-  // also supports masks of different offsets.
+  // also supports masks of differeng offsets.
   virtual void SUBTRACT(const RegMask &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Various translations due to differing offsets
@@ -452,6 +449,8 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
+  // Roll over the register mask, exposing a new set of stack slots for the
+  // register allocator.
   void rollover() {
     assert(is_AllStack_only(),"rolling over non-empty mask");
     _offset += _rm_size;
@@ -547,6 +546,7 @@ class RegMaskIterator {
   }
 };
 
+// Register mask of fixed size
 class RegMaskStatic : public RegMask {
 
   // Array of Register Mask bits.  This array is large enough to cover all the
@@ -619,10 +619,14 @@ class RegMaskStatic : public RegMask {
 
 };
 
+// Dynamically expanding register mask required when, e.g., compiling methods
+// with a very large number of parameters.
 class RegMaskGrowable : public RegMask {
 
+  // Where to allocate
   Arena* _arena;
 
+  // Expand the mask if needed
   void _grow(unsigned int min_size) {
     if(min_size > _rm_size) {
       unsigned int old_size = _rm_size;
