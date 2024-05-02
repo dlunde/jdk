@@ -1400,7 +1400,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
       // instead of SlotsPerVecA bits.
       assigned = mask.find_first_set(lrg, num_regs); // find highest valid reg
       while (OptoReg::is_valid(assigned)) {
-        assert(assigned < (int)mask.rm_size_bits(), "assigned: %d", assigned);
+        assert(assigned < (int)mask.rm_size_bits(), "sanity");
         // Verify the found reg has scalable_reg_slots() bits set.
         if (mask.is_valid_reg(assigned, num_regs)) {
           return assigned;
@@ -1505,7 +1505,7 @@ OptoReg::Name PhaseChaitin::choose_color( LRG &lrg ) {
          lrg.num_regs() == 2,"fat projs exactly color" );
   assert( !lrg.mask().is_offset(), "always color in 1st chunk" );
   // Return the highest element in the set.
-  assert(!lrg.mask().is_AllStack(), "");
+  assert(!lrg.mask().is_AllStack(), "find_last_elem returns INT_MAX if all-stack flag is set");
   return lrg.mask().find_last_elem();
 }
 
@@ -1554,15 +1554,11 @@ uint PhaseChaitin::Select( ) {
       IndexSetIterator elements(s);
       uint neighbor;
       while ((neighbor = elements.next()) != 0) {
-        // Note that neighbor might be a spill_reg.  In this case, exclusion
-        // of its color will be a no-op, since the spill_reg chunk is in outer
-        // space.  Also, if neighbor is in a different chunk, this exclusion
-        // will be a no-op.  (Later on, if lrg runs out of possible colors in
-        // its chunk, a new chunk of color may be tried, in which case
-        // examination of neighbors is started again, at retry_next_chunk.)
         LRG &nlrg = lrgs(neighbor);
         OptoReg::Name nreg = nlrg.reg();
         // Only subtract masks in the same chunk
+        // The neighbor might be a spill_reg. In this case, do not exclude the
+        // corresponding mask.
         if (nreg < LRG::SPILL_REG) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();

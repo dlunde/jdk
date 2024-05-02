@@ -446,33 +446,15 @@ void RegMask::dump(outputStream *st) const {
       st->print("-");
       OptoReg::dump(last, st);
     }
+    if (is_AllStack()) { st->print(","); }
   }
-  if (is_AllStack_new()) {
-    st->print(",");
+  if (is_AllStack()) {
     OptoReg::dump(offset_bits() + rm_size_bits(), st);
     st->print("...");
   }
   st->print("]");
 }
-
 #endif
-
-/* void RegMask::SUBTRACT(const RegMask &rm) { */
-/*   RegMaskStatic tmp1(*this); */
-/*   RegMaskStatic tmp2(rm); */
-/*   assert(_offset == rm._offset, ""); */
-/*   assert(_rm_size >= rm._rm_size, ""); */
-/*   assert(valid_watermarks() && rm.valid_watermarks(), "sanity"); */
-/*   unsigned hwm = MIN2(_hwm, rm._hwm); */
-/*   unsigned lwm = MAX2(_lwm, rm._lwm); */
-/*   for (unsigned i = lwm; i <= hwm; i++) { */
-/*     _RM_UP[i] &= ~rm._RM_UP[i]; */
-/*   } */
-/*   set_AllStack_new(is_AllStack_new() && !rm.is_AllStack_new()); */
-/*   tmp1.SUBTRACT_new(tmp2); */
-/*   assert(tmp1.equals(*this),""); */
-/*   assert(valid_watermarks(), "sanity"); */
-/* } */
 
 RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
 
