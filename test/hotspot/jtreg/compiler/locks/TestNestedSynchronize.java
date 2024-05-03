@@ -28,7 +28,7 @@
  *          Exercises C2 register masks, in particular. We incrementally
  *          increase the level of nesting (up to 100) to trigger potential edge
  *          cases.
- * @run main/othervm -XX:CompileCommand=compileonly,compiler.locks.TestNestedSynchronize::test
+ * @run main/othervm -XX:CompileCommand=compileonly,compiler.locks.TestNestedSynchronize::test*
  *                   -Xcomp
  *                   -XX:+AbortVMOnCompilationFailure
  *                   compiler.locks.TestNestedSynchronize
