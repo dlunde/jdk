@@ -114,9 +114,7 @@ class RegMask {
     dst._hwm = src._hwm;
     dst._lwm = src._lwm;
     // Copy everything from the source
-    for (unsigned i = 0; i < src._rm_size; i++) {
-      dst._RM_UP[i] = src._RM_UP[i];
-    }
+    memcpy(dst._RM_UP, src._RM_UP, sizeof(uintptr_t) * src._rm_size);
     // If the source is smaller than the destination, we need to set the gap
     // according to the all-stack flag.
     if (src._rm_size < dst._rm_size ) {
@@ -136,6 +134,13 @@ class RegMask {
 
   unsigned int rm_size() const { return _rm_size; }
   unsigned int rm_size_bits() const { return _rm_size * BitsPerWord; }
+
+  bool is_offset() const { return _offset > 0; }
+  unsigned int offset() const { return _offset; }
+  unsigned int offset_bits() const { return _offset * BitsPerWord; };
+
+  bool is_AllStack() const { return _all_stack; }
+  void set_AllStack(bool value = true) { _all_stack = value; }
 
   // SlotsPerLong is 2, since slots are 32 bits and longs are 64 bits.
   // Also, consider the maximum alignment size for a normally allocated
@@ -170,9 +175,6 @@ class RegMask {
     if (r >= rm_size_bits()) { return false; }
     return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
   }
-
-  bool is_AllStack() const { return _all_stack; }
-  void set_AllStack(bool value = true) { _all_stack = value; }
 
   // Test for being a not-empty mask (ignoring registers included through the
   // all-stack flag).
@@ -284,7 +286,7 @@ class RegMask {
   // UP means register only, Register plus stack, or stack only is DOWN
   bool is_UP() const;
 
-  // Clear a register mask. Does _NOT_ clear any offset.
+  // Clear a register mask. Does not clear any offset.
   void Clear() {
     _lwm = _rm_max();
     _hwm = 0;
@@ -407,7 +409,7 @@ class RegMask {
   }
 
   // Subtract 'rm' from 'this'. Unlike other operations such as AND and OR,
-  // also supports masks of differeng offsets.
+  // also supports masks of different offsets.
   virtual void SUBTRACT(const RegMask &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Various translations due to differing offsets
@@ -420,7 +422,13 @@ class RegMask {
         || (((int)_rm_max() >= rm_hwm_tr) && !rm.is_AllStack())
         || !is_AllStack(),
         "case not supported");
-    SUBTRACT_inner(rm);
+    int hwm = MIN2((int)_hwm, rm_hwm_tr);
+    int lwm = MAX2((int)_lwm, rm_lwm_tr);
+    for (int i = lwm; i <= hwm; i++) {
+      assert(i + rm_index_diff < (int)rm._rm_size, "sanity");
+      assert(i + rm_index_diff >= 0, "sanity");
+      _RM_UP[i] &= ~rm._RM_UP[i + rm_index_diff];
+    }
     if (rm.is_AllStack() && rm_rm_size_tr < (int)_rm_size ) {
       memset(_RM_UP + rm_rm_size_tr, 0, sizeof(uintptr_t) * (_rm_size - rm_rm_size_tr));
       _hwm = MAX2(rm_rm_max_tr,0);
@@ -456,10 +464,6 @@ class RegMask {
     _offset += _rm_size;
     Set_All_From_Offset();
   }
-
-  bool is_offset() const { return _offset > 0; }
-  unsigned int offset() const { return _offset; }
-  unsigned int offset_bits() const { return _offset * BitsPerWord; };
 
   // Compute size of register mask: number of bits
   uint Size() const;
@@ -547,7 +551,7 @@ class RegMaskIterator {
 };
 
 // Register mask of fixed size
-class RegMaskStatic : public RegMask {
+class RegMaskStatic final : public RegMask {
 
   // Array of Register Mask bits.  This array is large enough to cover all the
   // machine registers and all parameters that need to be passed on the stack
@@ -612,7 +616,7 @@ class RegMaskStatic : public RegMask {
     return *this;
   }
 
-  RegMaskStatic& operator= (const RegMask& rm) {
+  virtual RegMaskStatic& operator= (const RegMask& rm) override {
     _copy(rm,*this);
     return *this;
   }
@@ -621,7 +625,7 @@ class RegMaskStatic : public RegMask {
 
 // Dynamically expanding register mask required when, e.g., compiling methods
 // with a very large number of parameters.
-class RegMaskGrowable : public RegMask {
+class RegMaskGrowable final : public RegMask {
 
   // Where to allocate
   Arena* _arena;
@@ -638,6 +642,16 @@ class RegMaskGrowable : public RegMask {
         _hwm = _rm_max();
       }
       memset(_RM_UP + old_size, fill, sizeof(uintptr_t) * (_rm_size - old_size));
+    }
+  }
+
+  // Grow if needed, but do not reallocate. If you use this function,
+  // you must initialize _RM_UP elsewhere.
+  void _alloc(unsigned int min_size) {
+    if(min_size > _rm_size) {
+      unsigned int old_size = _rm_size;
+      _rm_size = min_size;
+      _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, _rm_size);
     }
   }
 
@@ -670,33 +684,33 @@ class RegMaskGrowable : public RegMask {
   }
 
   RegMaskGrowable& operator= (const RegMaskGrowable& rm) {
-    _grow(rm.rm_size());
+    _alloc(rm.rm_size());
     _copy(rm,*this);
     return *this;
   }
 
-  RegMaskGrowable& operator= (const RegMask& rm) {
-    _grow(rm.rm_size());
+  virtual RegMaskGrowable& operator= (const RegMask& rm) override {
+    _alloc(rm.rm_size());
     _copy(rm,*this);
     return *this;
   }
 
-  void OR(const RegMask &rm) {
+  virtual void OR(const RegMask &rm) override {
     _grow(rm.rm_size());
     RegMask::OR(rm);
   }
 
-  void AND(const RegMask &rm) {
+  virtual void AND(const RegMask &rm) override {
     _grow(rm.rm_size());
     RegMask::AND(rm);
   }
 
-  void SUBTRACT(const RegMask &rm) {
+  virtual void SUBTRACT(const RegMask &rm) override {
     _grow(rm.rm_size());
     RegMask::SUBTRACT(rm);
   }
 
-  void Set_All_From(OptoReg::Name reg) {
+  void Set_All_From(OptoReg::Name reg) override {
     int reg_offset = reg - offset_bits();
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
