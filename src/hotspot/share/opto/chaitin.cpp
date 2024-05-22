@@ -1573,7 +1573,7 @@ uint PhaseChaitin::Select( ) {
             tty->print(" intersected L%d ", neighbor);
             nlrg.mask().dump();
             tty->print(" removed ");
-            rm.SUBTRACT(lrg->mask());
+            rm.SUBTRACT_inner(lrg->mask());
             rm.dump();
             tty->print(" leaving ");
             lrg->mask().dump();
