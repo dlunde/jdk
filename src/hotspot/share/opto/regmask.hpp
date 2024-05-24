@@ -710,7 +710,7 @@ class RegMaskGrowable final : public RegMask {
     RegMask::SUBTRACT(rm);
   }
 
-  void Set_All_From(OptoReg::Name reg) override {
+  virtual void Set_All_From(OptoReg::Name reg) override {
     int reg_offset = reg - offset_bits();
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
