@@ -3879,23 +3879,66 @@ PhiNode *ConnectionGraph::create_split_phi(PhiNode *orig_phi, int alias_idx, Gro
 // Return a new version of Memory Phi "orig_phi" with the inputs having the
 // specified alias index.
 //
-PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist) {
+void ConnectionGraph::split_memory_phi_pre(
+    PhiNode* orig_phi,
+    int alias_idx,
+    GrowableArray<PhiNode *> &orig_phi_worklist,
+    FindInstMemStack& stack
+    ) {
+  bool& new_phi_created = stack.active.split_memory_phi_data.new_phi_created;
+  PhiNode*& result = stack.active.split_memory_phi_data.result;
+  PhiNode*& phi = stack.active.split_memory_phi_data.phi;
+  uint& idx = stack.active.split_memory_phi_data.idx;
+  bool& finished = stack.active.split_memory_phi_data.finished;
+  Node*& mem = stack.active.split_memory_phi_data.mem;
+  Compile*& C = stack.active.C;
+
   assert(alias_idx != Compile::AliasIdxBot, "can't split out bottom memory");
-  Compile *C = _compile;
-  PhaseGVN* igvn = _igvn;
-  bool new_phi_created;
-  PhiNode *result = create_split_phi(orig_phi, alias_idx, orig_phi_worklist, new_phi_created);
+  C = _compile;
+  new_phi_created = false;
+  result = create_split_phi(orig_phi, alias_idx, orig_phi_worklist, new_phi_created);
   if (!new_phi_created) {
-    return result;
+    stack.ret = result;
+    stack.has_returned = true;
+    return;
   }
-  GrowableArray<PhiNode *>  phi_list;
-  GrowableArray<uint>  cur_input;
-  PhiNode *phi = orig_phi;
-  uint idx = 1;
-  bool finished = false;
+  stack.active.split_memory_phi_data.phi_list = new GrowableArray<PhiNode *>;
+  stack.active.split_memory_phi_data.cur_input = new GrowableArray<uint>;
+  phi = orig_phi;
+  idx = 1;
+  finished = false;
+  split_memory_phi(alias_idx, orig_phi_worklist, stack);
+}
+
+void ConnectionGraph::split_memory_phi(
+    int alias_idx,
+    GrowableArray<PhiNode *>  &orig_phi_worklist,
+    FindInstMemStack& stack
+    ) {
+  FindInstMemFrame::Type& type = stack.active.type;
+  bool& new_phi_created = stack.active.split_memory_phi_data.new_phi_created;
+  PhiNode*& result = stack.active.split_memory_phi_data.result;
+  PhiNode*& phi = stack.active.split_memory_phi_data.phi;
+  uint& idx = stack.active.split_memory_phi_data.idx;
+  bool& finished = stack.active.split_memory_phi_data.finished;
+  Node*& mem = stack.active.split_memory_phi_data.mem;
+  GrowableArray<PhiNode *>& phi_list = *stack.active.split_memory_phi_data.phi_list;
+  GrowableArray<uint>& cur_input = *stack.active.split_memory_phi_data.cur_input;
+  Compile*& C = stack.active.C;
+
   while(!finished) {
     while (idx < phi->req()) {
-      Node *mem = find_inst_mem(phi->in(idx), alias_idx, orig_phi_worklist);
+      if (stack.has_returned) {
+        mem = stack.ret;
+        stack.ret = nullptr;
+        stack.has_returned = false;
+      } else {
+        type = FindInstMemFrame::SplitMemoryPhi;
+        stack.stack.push(stack.active);
+        stack.active.orig_mem = phi->in(idx);
+        return;
+      }
+
       if (mem != nullptr && mem->is_Phi()) {
         PhiNode *newphi = create_split_phi(mem->as_Phi(), alias_idx, orig_phi_worklist, new_phi_created);
         if (new_phi_created) {
@@ -3912,7 +3955,9 @@ PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, Gro
         }
       }
       if (C->failing()) {
-        return nullptr;
+        stack.ret = nullptr;
+        stack.has_returned = true;
+        return;
       }
       result->set_req(idx++, mem);
     }
@@ -3937,7 +3982,9 @@ PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, Gro
       result = prev_result;
     }
   }
-  return result;
+  stack.ret = result;
+  stack.has_returned = true;
+  return;
 }
 
 //
@@ -4037,17 +4084,61 @@ void ConnectionGraph::move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phi
 // Search memory chain of "mem" to find a MemNode whose address
 // is the specified alias index.
 //
-Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArray<PhiNode *>  &orig_phis) {
-  if (orig_mem == nullptr) {
-    return orig_mem;
+Node* ConnectionGraph::find_inst_mem(
+    Node *orig_mem_init,
+    int alias_idx,
+    GrowableArray<PhiNode *>  &orig_phis
+    ) {
+  FindInstMemStack stack;
+
+  FindInstMemFrame::Type& type = stack.active.type;
+  Node*& orig_mem = stack.active.orig_mem;
+  Node*& prev = stack.active.merge_mem_data.prev;
+  Node*& result = stack.active.merge_mem_data.result;
+  MergeMemNode*& mmem = stack.active.merge_mem_data.mmem;
+  const TypeOopPtr*& toop = stack.active.merge_mem_data.toop;
+  bool& is_instance = stack.active.merge_mem_data.is_instance;
+  Node*& start_mem = stack.active.merge_mem_data.start_mem;
+  Compile*& C = stack.active.C;
+  PhaseGVN*& igvn = stack.active.merge_mem_data.igvn;
+
+  orig_mem = orig_mem_init;
+
+base:
+
+  if (!stack.has_returned) {
+    if (orig_mem == nullptr) {
+      stack.ret = orig_mem;
+      stack.has_returned = true;
+      goto base;
+    }
+    C = _compile;
+    igvn = _igvn;
+    toop = C->get_adr_type(alias_idx)->isa_oopptr();
+    is_instance = (toop != nullptr) && toop->is_known_instance();
+    start_mem = C->start()->proj_out_or_null(TypeFunc::Memory);
+    prev = nullptr;
+    result = orig_mem;
+  } else /* if (stack.has_returned) */ {
+    if(stack.stack.is_empty()) {
+      return stack.ret;
+    }
+    stack.active = stack.stack.pop();
+    switch (type) {
+      case FindInstMemFrame::SplitMemoryPhi: {
+        split_memory_phi(alias_idx, orig_phis, stack);
+        goto base;
+      } case FindInstMemFrame::MergeMem: {
+        if (C->failing()) { return nullptr; }
+        result = stack.ret;
+        stack.ret = nullptr;
+        stack.has_returned = false;
+        mmem->set_memory_at(alias_idx, result);
+        break;
+      }
+    }
   }
-  Compile* C = _compile;
-  PhaseGVN* igvn = _igvn;
-  const TypeOopPtr *toop = C->get_adr_type(alias_idx)->isa_oopptr();
-  bool is_instance = (toop != nullptr) && toop->is_known_instance();
-  Node *start_mem = C->start()->proj_out_or_null(TypeFunc::Memory);
-  Node *prev = nullptr;
-  Node *result = orig_mem;
+
   while (prev != result) {
     prev = result;
     if (result == start_mem) {
@@ -4106,16 +4197,15 @@ Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArra
         result = proj_in->in(TypeFunc::Memory);
       }
     } else if (result->is_MergeMem()) {
-      MergeMemNode *mmem = result->as_MergeMem();
+      mmem = result->as_MergeMem();
       result = step_through_mergemem(mmem, alias_idx, toop);
       if (result == mmem->base_memory()) {
         // Didn't find instance memory, search through general slice recursively.
         result = mmem->memory_at(C->get_general_index(alias_idx));
-        result = find_inst_mem(result, alias_idx, orig_phis);
-        if (C->failing()) {
-          return nullptr;
-        }
-        mmem->set_memory_at(alias_idx, result);
+        type = FindInstMemFrame::MergeMem;
+        stack.stack.push(stack.active);
+        stack.active.orig_mem = result;
+        goto base;
       }
     } else if (result->is_Phi() &&
                C->get_alias_index(result->as_Phi()->adr_type()) != alias_idx) {
@@ -4179,11 +4269,14 @@ Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArra
       orig_phis.append_if_missing(mphi);
     } else if (C->get_alias_index(t) != alias_idx) {
       // Create a new Phi with the specified alias index type.
-      result = split_memory_phi(mphi, alias_idx, orig_phis);
+      split_memory_phi_pre(mphi, alias_idx, orig_phis, stack);
+      goto base;
     }
   }
   // the result is either MemNode, PhiNode, InitializeNode.
-  return result;
+  stack.ret = result;
+  stack.has_returned = true;
+  goto base;
 }
 
 //

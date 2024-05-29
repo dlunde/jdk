@@ -548,8 +548,43 @@ private:
   // Helper methods for unique types split.
   bool split_AddP(Node *addp, Node *base);
 
+  struct FindInstMemFrame {
+    enum Type { MergeMem, SplitMemoryPhi } type;
+    Node* orig_mem;
+    Compile *C;
+    union {
+      struct {
+        PhaseGVN* igvn;
+        Node* prev;
+        Node* result;
+        MergeMemNode *mmem;
+        const TypeOopPtr *toop;
+        bool is_instance;
+        Node *start_mem;
+      } merge_mem_data;
+      struct {
+        bool finished;
+        Node* mem;
+        uint idx;
+        PhiNode *phi;
+        bool new_phi_created;
+        PhiNode *result;
+        GrowableArray<PhiNode *>* phi_list;
+        GrowableArray<uint>* cur_input;
+      } split_memory_phi_data;
+    };
+  };
+
+  struct FindInstMemStack {
+    GrowableArray<FindInstMemFrame> stack;
+    Node* ret = nullptr;
+    bool has_returned = false;
+    FindInstMemFrame active;
+  };
+
   PhiNode *create_split_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, bool &new_created);
-  PhiNode *split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist);
+  void split_memory_phi_pre(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, FindInstMemStack &stack);
+  void split_memory_phi(int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, FindInstMemStack &stack);
 
   void  move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phis);
   Node* find_inst_mem(Node* mem, int alias_idx,GrowableArray<PhiNode *>  &orig_phi_worklist);
