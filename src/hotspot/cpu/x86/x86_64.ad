@@ -332,24 +332,24 @@ source_hpp %{
 // Register masks
 source_hpp %{
 
-extern RegMaskStatic _ANY_REG_mask;
-extern RegMaskStatic _PTR_REG_mask;
-extern RegMaskStatic _PTR_REG_NO_RBP_mask;
-extern RegMaskStatic _PTR_NO_RAX_REG_mask;
-extern RegMaskStatic _PTR_NO_RAX_RBX_REG_mask;
-extern RegMaskStatic _LONG_REG_mask;
-extern RegMaskStatic _LONG_NO_RAX_RDX_REG_mask;
-extern RegMaskStatic _LONG_NO_RCX_REG_mask;
-extern RegMaskStatic _LONG_NO_RBP_R13_REG_mask;
-extern RegMaskStatic _INT_REG_mask;
-extern RegMaskStatic _INT_NO_RAX_RDX_REG_mask;
-extern RegMaskStatic _INT_NO_RCX_REG_mask;
-extern RegMaskStatic _INT_NO_RBP_R13_REG_mask;
-extern RegMaskStatic _FLOAT_REG_mask;
+extern RegMask _ANY_REG_mask;
+extern RegMask _PTR_REG_mask;
+extern RegMask _PTR_REG_NO_RBP_mask;
+extern RegMask _PTR_NO_RAX_REG_mask;
+extern RegMask _PTR_NO_RAX_RBX_REG_mask;
+extern RegMask _LONG_REG_mask;
+extern RegMask _LONG_NO_RAX_RDX_REG_mask;
+extern RegMask _LONG_NO_RCX_REG_mask;
+extern RegMask _LONG_NO_RBP_R13_REG_mask;
+extern RegMask _INT_REG_mask;
+extern RegMask _INT_NO_RAX_RDX_REG_mask;
+extern RegMask _INT_NO_RCX_REG_mask;
+extern RegMask _INT_NO_RBP_R13_REG_mask;
+extern RegMask _FLOAT_REG_mask;
 
-extern RegMaskStatic _STACK_OR_PTR_REG_mask;
-extern RegMaskStatic _STACK_OR_LONG_REG_mask;
-extern RegMaskStatic _STACK_OR_INT_REG_mask;
+extern RegMask _STACK_OR_PTR_REG_mask;
+extern RegMask _STACK_OR_LONG_REG_mask;
+extern RegMask _STACK_OR_INT_REG_mask;
 
 inline const RegMask& STACK_OR_PTR_REG_mask()  { return _STACK_OR_PTR_REG_mask;  }
 inline const RegMask& STACK_OR_LONG_REG_mask() { return _STACK_OR_LONG_REG_mask; }
@@ -363,23 +363,23 @@ source %{
 
 #define __ masm->
 
-RegMaskStatic _ANY_REG_mask;
-RegMaskStatic _PTR_REG_mask;
-RegMaskStatic _PTR_REG_NO_RBP_mask;
-RegMaskStatic _PTR_NO_RAX_REG_mask;
-RegMaskStatic _PTR_NO_RAX_RBX_REG_mask;
-RegMaskStatic _LONG_REG_mask;
-RegMaskStatic _LONG_NO_RAX_RDX_REG_mask;
-RegMaskStatic _LONG_NO_RCX_REG_mask;
-RegMaskStatic _LONG_NO_RBP_R13_REG_mask;
-RegMaskStatic _INT_REG_mask;
-RegMaskStatic _INT_NO_RAX_RDX_REG_mask;
-RegMaskStatic _INT_NO_RCX_REG_mask;
-RegMaskStatic _INT_NO_RBP_R13_REG_mask;
-RegMaskStatic _FLOAT_REG_mask;
-RegMaskStatic _STACK_OR_PTR_REG_mask;
-RegMaskStatic _STACK_OR_LONG_REG_mask;
-RegMaskStatic _STACK_OR_INT_REG_mask;
+RegMask _ANY_REG_mask;
+RegMask _PTR_REG_mask;
+RegMask _PTR_REG_NO_RBP_mask;
+RegMask _PTR_NO_RAX_REG_mask;
+RegMask _PTR_NO_RAX_RBX_REG_mask;
+RegMask _LONG_REG_mask;
+RegMask _LONG_NO_RAX_RDX_REG_mask;
+RegMask _LONG_NO_RCX_REG_mask;
+RegMask _LONG_NO_RBP_R13_REG_mask;
+RegMask _INT_REG_mask;
+RegMask _INT_NO_RAX_RDX_REG_mask;
+RegMask _INT_NO_RCX_REG_mask;
+RegMask _INT_NO_RBP_R13_REG_mask;
+RegMask _FLOAT_REG_mask;
+RegMask _STACK_OR_PTR_REG_mask;
+RegMask _STACK_OR_LONG_REG_mask;
+RegMask _STACK_OR_INT_REG_mask;
 
 static bool need_r12_heapbase() {
   return UseCompressedOops;
@@ -1556,27 +1556,27 @@ bool Matcher::use_asm_for_ldiv_by_con( jlong divisor ) {
 }
 
 // Register for DIVI projection of divmodI
-RegMaskStatic Matcher::divI_proj_mask() {
+RegMask Matcher::divI_proj_mask() {
   return INT_RAX_REG_mask();
 }
 
 // Register for MODI projection of divmodI
-RegMaskStatic Matcher::modI_proj_mask() {
+RegMask Matcher::modI_proj_mask() {
   return INT_RDX_REG_mask();
 }
 
 // Register for DIVL projection of divmodL
-RegMaskStatic Matcher::divL_proj_mask() {
+RegMask Matcher::divL_proj_mask() {
   return LONG_RAX_REG_mask();
 }
 
 // Register for MODL projection of divmodL
-RegMaskStatic Matcher::modL_proj_mask() {
+RegMask Matcher::modL_proj_mask() {
   return LONG_RDX_REG_mask();
 }
 
 // Register for saving SP into on method handle invokes. Not used on x86_64.
-const RegMaskStatic Matcher::method_handle_invoke_SP_save_mask() {
+const RegMask Matcher::method_handle_invoke_SP_save_mask() {
     return NO_REG_mask();
 }
 

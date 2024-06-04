@@ -346,10 +346,10 @@ void RegClass::forms_do(FormClosure *f) {
 void RegClass::declare_register_masks(FILE* fp) {
   const char* prefix = "";
   const char* rc_name_to_upper = toUpper(_classid);
-  fprintf(fp, "extern const RegMaskStatic _%s%s_mask;\n", prefix,  rc_name_to_upper);
+  fprintf(fp, "extern const RegMask _%s%s_mask;\n", prefix,  rc_name_to_upper);
   fprintf(fp, "inline const RegMask &%s%s_mask() { return _%s%s_mask; }\n", prefix, rc_name_to_upper, prefix, rc_name_to_upper);
   if (_stack_or_reg) {
-    fprintf(fp, "extern const RegMaskStatic _%sSTACK_OR_%s_mask;\n", prefix, rc_name_to_upper);
+    fprintf(fp, "extern const RegMask _%sSTACK_OR_%s_mask;\n", prefix, rc_name_to_upper);
     fprintf(fp, "inline const RegMask &%sSTACK_OR_%s_mask() { return _%sSTACK_OR_%s_mask; }\n", prefix, rc_name_to_upper, prefix, rc_name_to_upper);
   }
   delete[] rc_name_to_upper;
@@ -359,7 +359,7 @@ void RegClass::build_register_masks(FILE* fp) {
   int len = RegisterForm::RegMask_Size();
   const char *prefix = "";
   const char* rc_name_to_upper = toUpper(_classid);
-  fprintf(fp, "const RegMaskStatic _%s%s_mask(", prefix, rc_name_to_upper);
+  fprintf(fp, "const RegMask _%s%s_mask(", prefix, rc_name_to_upper);
 
   int i;
   for(i = 0; i < len - 1; i++) {
@@ -368,7 +368,7 @@ void RegClass::build_register_masks(FILE* fp) {
   fprintf(fp," 0x%x );\n", regs_in_word(i, false));
 
   if (_stack_or_reg) {
-    fprintf(fp, "const RegMaskStatic _%sSTACK_OR_%s_mask(", prefix, rc_name_to_upper);
+    fprintf(fp, "const RegMask _%sSTACK_OR_%s_mask(", prefix, rc_name_to_upper);
     for(i = 0; i < len - 1; i++) {
       fprintf(fp," 0x%x,", regs_in_word(i, true));
     }

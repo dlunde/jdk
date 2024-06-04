@@ -49,9 +49,9 @@ void OptoReg::dump(int r, outputStream *st) {
 
 
 //=============================================================================
-const RegMaskStatic RegMask::Empty;
+const RegMask RegMask::Empty;
 
-const RegMaskStatic RegMask::All(
+const RegMask RegMask::All(
 # define BODY(I) -1,
   FORALL_BODY
 # undef BODY
@@ -455,11 +455,3 @@ void RegMask::dump(outputStream *st) const {
   st->print("]");
 }
 #endif
-
-RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
-
-RegMaskGrowable::RegMaskGrowable(const RegMask& rm)
-  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}
-
-RegMaskGrowable::RegMaskGrowable(const RegMaskGrowable& rm)
-  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}

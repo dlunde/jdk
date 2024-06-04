@@ -1616,28 +1616,28 @@ bool Matcher::use_asm_for_ldiv_by_con(jlong divisor) {
 }
 
 // Register for DIVI projection of divmodI
-RegMaskStatic Matcher::divI_proj_mask() {
+RegMask Matcher::divI_proj_mask() {
   return _Z_RARG4_INT_REG_mask;
 }
 
 // Register for MODI projection of divmodI
-RegMaskStatic Matcher::modI_proj_mask() {
+RegMask Matcher::modI_proj_mask() {
   return _Z_RARG3_INT_REG_mask;
 }
 
 // Register for DIVL projection of divmodL
-RegMaskStatic Matcher::divL_proj_mask() {
+RegMask Matcher::divL_proj_mask() {
   return _Z_RARG4_LONG_REG_mask;
 }
 
 // Register for MODL projection of divmodL
-RegMaskStatic Matcher::modL_proj_mask() {
+RegMask Matcher::modL_proj_mask() {
   return _Z_RARG3_LONG_REG_mask;
 }
 
 // Copied from sparc.
-const RegMaskStatic Matcher::method_handle_invoke_SP_save_mask() {
-  return RegMaskStatic();
+const RegMask Matcher::method_handle_invoke_SP_save_mask() {
+  return RegMask();
 }
 
 // Should the matcher clone input 'm' of node 'n'?

@@ -751,7 +751,7 @@ Node *CallNode::match( const ProjNode *proj, const Matcher *match ) {
       : is_CallRuntime()
         ? match->c_return_value(ideal_reg)  // Calls into C runtime
         : match->  return_value(ideal_reg); // Calls into compiled Java code
-    RegMaskStatic rm(regs.first());
+    RegMask rm(regs.first());
 
     if (Opcode() == Op_CallLeafVector) {
       // If the return is in vector, compute appropriate regmask taking into account the whole range

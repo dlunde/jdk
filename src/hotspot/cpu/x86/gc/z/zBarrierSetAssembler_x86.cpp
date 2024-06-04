@@ -1281,7 +1281,7 @@ private:
   void initialize(ZBarrierStubC2* stub) {
     // Create mask of caller saved registers that need to
     // be saved/restored if live
-    RegMaskStatic caller_saved;
+    RegMask caller_saved;
     caller_saved.Insert(OptoReg::as_OptoReg(rax->as_VMReg()));
     caller_saved.Insert(OptoReg::as_OptoReg(rcx->as_VMReg()));
     caller_saved.Insert(OptoReg::as_OptoReg(rdx->as_VMReg()));
@@ -1297,7 +1297,7 @@ private:
     }
 
     // Create mask of live registers
-    RegMaskStatic live = stub->live();
+    RegMask live = stub->live();
 
     int gp_spill_size = 0;
     int opmask_spill_size = 0;
