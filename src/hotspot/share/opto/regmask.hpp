@@ -457,37 +457,25 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
-  // Subtract 'rm' from 'this'. Unlike other operations such as AND and OR,
-  // also supports masks of different offsets.
   void SUBTRACT(const RegMask &rm) {
+    assert(_offset == rm._offset, "offset mismatch");
+    assert(_rm_size >= rm._rm_size, "argument RegMask is too big");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
-    // Various translations due to differing offsets
-    int rm_index_diff = _offset - rm._offset;
-    int rm_hwm_tr = (int)rm._hwm - rm_index_diff;
-    int rm_lwm_tr = (int)rm._lwm - rm_index_diff;
-    int rm_rm_max_tr = (int)rm._rm_max() - rm_index_diff;
-    int rm_rm_size_tr = (int)rm._rm_size - rm_index_diff;
-    assert(((int)_rm_max() >= rm_rm_max_tr)
-        || (((int)_rm_max() >= rm_hwm_tr) && !rm.is_AllStack())
-        || !is_AllStack(),
-        "case not supported");
-    int hwm = MIN2((int)_hwm, rm_hwm_tr);
-    int lwm = MAX2((int)_lwm, rm_lwm_tr);
-    for (int i = lwm; i <= hwm; i++) {
-      assert(i + rm_index_diff < (int)rm._rm_size, "sanity");
-      assert(i + rm_index_diff >= 0, "sanity");
-      _RM_UP[i] &= ~rm._RM_UP[i + rm_index_diff];
+    unsigned hwm = MIN2(_hwm, rm._hwm);
+    unsigned lwm = MAX2(_lwm, rm._lwm);
+    for (unsigned i = lwm; i <= hwm; i++) {
+      _RM_UP[i] &= ~rm._RM_UP[i];
     }
-    if (rm.is_AllStack() && rm_rm_size_tr < (int)_rm_size ) {
-      memset(_RM_UP + rm_rm_size_tr, 0, sizeof(uintptr_t) * (_rm_size - rm_rm_size_tr));
-      _hwm = MAX2(rm_rm_max_tr,0);
+    if (rm.is_AllStack() && rm._rm_size < _rm_size ) {
+      memset(_RM_UP + rm._rm_size, 0, sizeof(uintptr_t) * (_rm_size - rm._rm_size));
+      _hwm = rm._rm_max();
     }
     set_AllStack(is_AllStack() && !rm.is_AllStack());
     assert(valid_watermarks(), "sanity");
   }
 
   // Subtract 'rm' from 'this', but ignore everything in 'rm' that does not
-  // overlap with us.
+  // overlap with us. Also supports computation with offsets
   void SUBTRACT_inner(const RegMask &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Various translations due to differing offsets
