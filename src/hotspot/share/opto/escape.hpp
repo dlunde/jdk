@@ -548,26 +548,23 @@ private:
   // Helper methods for unique types split.
   bool split_AddP(Node *addp, Node *base);
 
+  // Stack frame type for manually handled find_inst_mem recursion. There are
+  // two different types of recursive calls, and the frame needs to preserve a
+  // subset of local variables.
   struct FindInstMemFrame {
     enum Type { MergeMem, SplitMemoryPhi } type;
-    Node* orig_mem;
-    Compile *C;
+    Node* arg_orig_mem;
     union {
       struct {
-        PhaseGVN* igvn;
         Node* prev;
-        Node* result;
         MergeMemNode *mmem;
         const TypeOopPtr *toop;
         bool is_instance;
         Node *start_mem;
       } merge_mem_data;
       struct {
-        bool finished;
-        Node* mem;
         uint idx;
         PhiNode *phi;
-        bool new_phi_created;
         PhiNode *result;
         GrowableArray<PhiNode *>* phi_list;
         GrowableArray<uint>* cur_input;
@@ -575,6 +572,7 @@ private:
     };
   };
 
+  // A call stack of FindInstMemFrames.
   struct FindInstMemStack {
     GrowableArray<FindInstMemFrame> stack;
     Node* ret = nullptr;

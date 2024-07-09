@@ -3885,17 +3885,16 @@ void ConnectionGraph::split_memory_phi_pre(
     GrowableArray<PhiNode *> &orig_phi_worklist,
     FindInstMemStack& stack
     ) {
-  bool& new_phi_created = stack.active.split_memory_phi_data.new_phi_created;
+
+  Compile* C = _compile;
+
+  // Set up aliases for stack frame variables
   PhiNode*& result = stack.active.split_memory_phi_data.result;
   PhiNode*& phi = stack.active.split_memory_phi_data.phi;
   uint& idx = stack.active.split_memory_phi_data.idx;
-  bool& finished = stack.active.split_memory_phi_data.finished;
-  Node*& mem = stack.active.split_memory_phi_data.mem;
-  Compile*& C = stack.active.C;
 
   assert(alias_idx != Compile::AliasIdxBot, "can't split out bottom memory");
-  C = _compile;
-  new_phi_created = false;
+  bool new_phi_created;
   result = create_split_phi(orig_phi, alias_idx, orig_phi_worklist, new_phi_created);
   if (!new_phi_created) {
     stack.ret = result;
@@ -3906,7 +3905,6 @@ void ConnectionGraph::split_memory_phi_pre(
   stack.active.split_memory_phi_data.cur_input = new GrowableArray<uint>;
   phi = orig_phi;
   idx = 1;
-  finished = false;
   split_memory_phi(alias_idx, orig_phi_worklist, stack);
 }
 
@@ -3915,31 +3913,39 @@ void ConnectionGraph::split_memory_phi(
     GrowableArray<PhiNode *>  &orig_phi_worklist,
     FindInstMemStack& stack
     ) {
+
+  Compile* C = _compile;
+
+  // Set up aliases for stack frame variables
   FindInstMemFrame::Type& type = stack.active.type;
-  bool& new_phi_created = stack.active.split_memory_phi_data.new_phi_created;
   PhiNode*& result = stack.active.split_memory_phi_data.result;
   PhiNode*& phi = stack.active.split_memory_phi_data.phi;
   uint& idx = stack.active.split_memory_phi_data.idx;
-  bool& finished = stack.active.split_memory_phi_data.finished;
-  Node*& mem = stack.active.split_memory_phi_data.mem;
   GrowableArray<PhiNode *>& phi_list = *stack.active.split_memory_phi_data.phi_list;
   GrowableArray<uint>& cur_input = *stack.active.split_memory_phi_data.cur_input;
-  Compile*& C = stack.active.C;
 
+  bool finished = false;
   while(!finished) {
     while (idx < phi->req()) {
-      if (stack.has_returned) {
+      Node* mem;
+
+      // A manually handled recursive call to find_inst_mem (see comments at
+      // the beginning of find_inst_mem)
+      if (!stack.has_returned) {
+        type = FindInstMemFrame::SplitMemoryPhi;
+        stack.stack.push(stack.active);
+        stack.active.arg_orig_mem = phi->in(idx);
+        return;
+
+      // Manually handle returns from the above find_inst_mem calls.
+      } else {
         mem = stack.ret;
         stack.ret = nullptr;
         stack.has_returned = false;
-      } else {
-        type = FindInstMemFrame::SplitMemoryPhi;
-        stack.stack.push(stack.active);
-        stack.active.orig_mem = phi->in(idx);
-        return;
       }
 
       if (mem != nullptr && mem->is_Phi()) {
+        bool new_phi_created;
         PhiNode *newphi = create_split_phi(mem->as_Phi(), alias_idx, orig_phi_worklist, new_phi_created);
         if (new_phi_created) {
           // found an phi for which we created a new split, push current one on worklist and begin
@@ -4085,40 +4091,49 @@ void ConnectionGraph::move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phi
 // is the specified alias index.
 //
 Node* ConnectionGraph::find_inst_mem(
-    Node *orig_mem_init,
+    Node *orig_mem,
     int alias_idx,
-    GrowableArray<PhiNode *>  &orig_phis
+    GrowableArray<PhiNode *> &orig_phis
     ) {
+
+  Compile* C = _compile;
+  PhaseGVN* igvn = _igvn;
+  Node* result;
+
+  // Memory optimization: explicit stack instead of recursive calls to
+  // find_inst_mem.
   FindInstMemStack stack;
 
+  // Set up aliases for stack frame variables
   FindInstMemFrame::Type& type = stack.active.type;
-  Node*& orig_mem = stack.active.orig_mem;
+  Node*& arg_orig_mem = stack.active.arg_orig_mem;
   Node*& prev = stack.active.merge_mem_data.prev;
-  Node*& result = stack.active.merge_mem_data.result;
   MergeMemNode*& mmem = stack.active.merge_mem_data.mmem;
   const TypeOopPtr*& toop = stack.active.merge_mem_data.toop;
   bool& is_instance = stack.active.merge_mem_data.is_instance;
   Node*& start_mem = stack.active.merge_mem_data.start_mem;
-  Compile*& C = stack.active.C;
-  PhaseGVN*& igvn = stack.active.merge_mem_data.igvn;
 
-  orig_mem = orig_mem_init;
+  // Initial argument
+  arg_orig_mem = orig_mem;
 
+  // To avoid recursive calls to find_inst_mem, we instead jump back to this
+  // label and manually handle that part of the call stack.
 base:
 
+  // New recursive call to find_inst_mem
   if (!stack.has_returned) {
-    if (orig_mem == nullptr) {
-      stack.ret = orig_mem;
+    if (arg_orig_mem == nullptr) {
+      stack.ret = arg_orig_mem;
       stack.has_returned = true;
       goto base;
     }
-    C = _compile;
-    igvn = _igvn;
     toop = C->get_adr_type(alias_idx)->isa_oopptr();
     is_instance = (toop != nullptr) && toop->is_known_instance();
     start_mem = C->start()->proj_out_or_null(TypeFunc::Memory);
     prev = nullptr;
-    result = orig_mem;
+    result = arg_orig_mem;
+
+  // Return from previous recursive call to find_inst_mem
   } else /* if (stack.has_returned) */ {
     if(stack.stack.is_empty()) {
       return stack.ret;
@@ -4202,9 +4217,11 @@ base:
       if (result == mmem->base_memory()) {
         // Didn't find instance memory, search through general slice recursively.
         result = mmem->memory_at(C->get_general_index(alias_idx));
+        // A manually handled recursive call to find_inst_mem (see comments at
+        // the beginning of find_inst_mem)
         type = FindInstMemFrame::MergeMem;
         stack.stack.push(stack.active);
-        stack.active.orig_mem = result;
+        stack.active.arg_orig_mem = result;
         goto base;
       }
     } else if (result->is_Phi() &&
