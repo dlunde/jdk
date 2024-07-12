@@ -4033,14 +4033,36 @@ void ConnectionGraph::move_inst_mem(Node* n, GrowableArray<PhiNode *>  &orig_phi
   }
 }
 
+static void check_for_stack_overflow() {
+  int count = 0;
+  frame fr = os::current_frame();
+  while (fr.pc() != nullptr) {
+    count++;
+    if (os::is_first_C_frame(&fr)) break;
+    fr = os::get_sender_for_C_frame(&fr);
+  }
+  if (count > 500) {
+    Compile::current()->igv_print_method_to_file();
+    assert(count < 500, "Stack overflow");
+  }
+}
+
 //
 // Search memory chain of "mem" to find a MemNode whose address
 // is the specified alias index.
 //
 Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArray<PhiNode *>  &orig_phis, int rec_depth) {
+  check_for_stack_overflow();
   if (orig_mem == nullptr) {
     return orig_mem;
   }
+  if (UseNewCode && (rec_depth >= 300 || rec_depth == 0)) {
+    tty->print("rec_depth = %d |", rec_depth);
+    orig_mem->dump();
+  }
+  /* if (rec_depth > 20) { */
+  /*   Compile::current()->igv_print_method_to_network(); */
+  /* } */
   Compile* C = _compile;
   PhaseGVN* igvn = _igvn;
   const TypeOopPtr *toop = C->get_adr_type(alias_idx)->isa_oopptr();
