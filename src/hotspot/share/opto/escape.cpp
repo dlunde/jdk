@@ -3880,6 +3880,10 @@ PhiNode *ConnectionGraph::create_split_phi(PhiNode *orig_phi, int alias_idx, Gro
 // specified alias index.
 //
 PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, GrowableArray<PhiNode *>  &orig_phi_worklist, int rec_depth) {
+  if (UseNewCode) {
+    tty->print("split_memory_phi | rec_depth = %d |", rec_depth);
+    orig_phi->dump();
+  }
   assert(alias_idx != Compile::AliasIdxBot, "can't split out bottom memory");
   Compile *C = _compile;
   PhaseGVN* igvn = _igvn;
@@ -4056,8 +4060,8 @@ Node* ConnectionGraph::find_inst_mem(Node *orig_mem, int alias_idx, GrowableArra
   if (orig_mem == nullptr) {
     return orig_mem;
   }
-  if (UseNewCode && (rec_depth >= 300 || rec_depth == 0)) {
-    tty->print("rec_depth = %d |", rec_depth);
+  if (UseNewCode) {
+    tty->print("find_inst_mem    | rec_depth = %d |", rec_depth);
     orig_mem->dump();
   }
   /* if (rec_depth > 20) { */
