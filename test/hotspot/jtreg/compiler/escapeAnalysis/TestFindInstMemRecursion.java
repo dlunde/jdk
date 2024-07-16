@@ -28,6 +28,7 @@
  *          overflow.
  *
  * @run main/othervm -Xcomp -XX:CompileThreshold=10 -XX:-TieredCompilation
+ *                   -XX:CompileCommand=MemLimit,*.*,0
  *                   compiler.escapeAnalysis.TestFindInstMemRecursion
  *
  */
