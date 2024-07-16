@@ -3895,8 +3895,7 @@ PhiNode *ConnectionGraph::split_memory_phi(PhiNode *orig_phi, int alias_idx, Gro
   bool finished = false;
   while(!finished) {
     while (idx < phi->req()) {
-      Node *mem = find_inst_mem(phi->in(idx), alias_idx,
-                                orig_phi_worklist, rec_depth + 1);
+      Node *mem = find_inst_mem(phi->in(idx), alias_idx, orig_phi_worklist, rec_depth + 1);
       if (mem != nullptr && mem->is_Phi()) {
         PhiNode *newphi = create_split_phi(mem->as_Phi(), alias_idx, orig_phi_worklist, new_phi_created);
         if (new_phi_created) {
