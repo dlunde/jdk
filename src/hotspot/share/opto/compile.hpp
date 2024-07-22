@@ -556,7 +556,7 @@ private:
   int                   _inner_loops;           // Number of inner loops in the method
   Matcher*              _matcher;               // Engine to map ideal to machine instructions
   PhaseRegAlloc*        _regalloc;              // Results of register allocation.
-  RegMaskGrowable       _FIRST_STACK_mask;      // All stack slots usable for spills (depends on frame layout)
+  RegMaskDynamic       _FIRST_STACK_mask;      // All stack slots usable for spills (depends on frame layout)
   Arena*                _indexSet_arena;        // control IndexSet allocation within PhaseChaitin
   void*                 _indexSet_free_block_list; // free list of IndexSet bit blocks
   int                   _interpreter_frame_size;
@@ -1111,7 +1111,7 @@ private:
   int               inner_loops() const         { return _inner_loops; }
   Matcher*          matcher()                   { return _matcher; }
   PhaseRegAlloc*    regalloc()                  { return _regalloc; }
-  RegMaskGrowable&  FIRST_STACK_mask()          { return _FIRST_STACK_mask; }
+  RegMaskDynamic&  FIRST_STACK_mask()          { return _FIRST_STACK_mask; }
   Arena*            indexSet_arena()            { return _indexSet_arena; }
   void*             indexSet_free_block_list()  { return _indexSet_free_block_list; }
   DebugInformationRecorder* debug_info()        { return env()->debug_info(); }

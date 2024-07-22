@@ -103,7 +103,7 @@ public:
   }
 
 private:
-  RegMaskGrowable _mask;        // Allowed registers for this LRG
+  RegMaskDynamic _mask;        // Allowed registers for this LRG
   uint _mask_size;              // cache of _mask.Size();
 public:
   int compute_mask_size() const { return _mask.is_AllStack() ? AllStack_size : _mask.Size(); }
@@ -128,9 +128,9 @@ public:
   // Get the last mask size computed, even if it does not match the
   // count of bits in the current mask.
   int get_invalid_mask_size() const { return _mask_size; }
-  const RegMaskGrowable &mask() const { return _mask; }
+  const RegMaskDynamic &mask() const { return _mask; }
   void set_mask( const RegMask &rm ) { _mask = rm; debug_only(_msize_valid=0;)}
-  void init_mask() { new(&_mask) RegMaskGrowable(); }
+  void init_mask() { new(&_mask) RegMaskDynamic(); }
   void AND( const RegMask &rm ) { _mask.AND(rm); debug_only(_msize_valid=0;)}
   void SUBTRACT( const RegMask &rm ) { _mask.SUBTRACT(rm); debug_only(_msize_valid=0;)}
   void SUBTRACT_inner( const RegMask &rm ) { _mask.SUBTRACT_inner(rm); debug_only(_msize_valid=0;)}

@@ -1127,7 +1127,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                 // If this node is already a SpillCopy, just patch the edge
                 // except the case of spilling to stack.
                 if( n->is_SpillCopy() ) {
-                  RegMaskGrowable tmp_rm(umask);
+                  RegMaskDynamic tmp_rm(umask);
                   tmp_rm.SUBTRACT(Matcher::STACK_ONLY_mask);
                   if( dmask.overlap(tmp_rm) ) {
                     if( def != n->in(inpidx) ) {

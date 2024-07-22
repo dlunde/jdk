@@ -317,7 +317,7 @@ public:
   OptoReg::Name _out_arg_limit;
 
   OptoRegPair *_parm_regs;        // Array of machine registers per argument
-  RegMaskGrowable *_calling_convention_mask; // Array of RegMasks per argument
+  RegMaskDynamic *_calling_convention_mask; // Array of RegMasks per argument
 
   // Does matcher have a match rule for this ideal node?
   static bool has_match_rule(int opcode);
@@ -405,7 +405,7 @@ public:
   // Return address register.  On Intel it is a stack-slot.  On PowerPC
   // it is the Link register.  On Sparc it is r31?
   virtual OptoReg::Name return_addr() const;
-  RegMaskGrowable _return_addr_mask;
+  RegMaskDynamic _return_addr_mask;
   // Return value register.  On Intel it is EAX.
   static OptoRegPair   return_value(uint ideal_reg);
   static OptoRegPair c_return_value(uint ideal_reg);

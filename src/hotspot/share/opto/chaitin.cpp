@@ -1377,7 +1377,7 @@ static bool is_legal_reg(LRG &lrg, OptoReg::Name reg) {
   return false;
 }
 
-static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
+static OptoReg::Name find_first_set(LRG &lrg, RegMaskDynamic mask) {
   int num_regs = lrg.num_regs();
   OptoReg::Name assigned = mask.find_first_set(lrg, num_regs);
 
@@ -1454,7 +1454,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
         return reg;
     } else if( !lrg.mask().is_offset() ) {
       // Choose a color which is legal for him
-      RegMaskGrowable tempmask = lrg.mask();
+      RegMaskDynamic tempmask = lrg.mask();
       assert(!lrgs(copy_lrg).mask().is_offset(), "Should hold? Otherwise AND below doesn't make sense");
       tempmask.AND(lrgs(copy_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
@@ -1549,7 +1549,7 @@ uint PhaseChaitin::Select( ) {
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
-    debug_only(RegMaskGrowable orig_mask(lrg->mask());)
+    debug_only(RegMaskDynamic orig_mask(lrg->mask());)
 
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
@@ -1563,7 +1563,7 @@ uint PhaseChaitin::Select( ) {
         if (nreg < LRG::SPILL_REG) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();
-          RegMaskGrowable rm = lrg->mask();
+          RegMaskDynamic rm = lrg->mask();
 #endif
           lrg->SUBTRACT_inner(nlrg.mask());
 #ifndef PRODUCT
@@ -1607,7 +1607,7 @@ uint PhaseChaitin::Select( ) {
     // Did we get a color?
     else if( OptoReg::is_valid(reg)) {
 #ifndef PRODUCT
-      RegMaskGrowable avail_rm(lrg->mask());
+      RegMaskDynamic avail_rm(lrg->mask());
 #endif
 
       // Record selected register

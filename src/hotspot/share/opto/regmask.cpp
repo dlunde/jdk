@@ -456,10 +456,10 @@ void RegMask::dump(outputStream *st) const {
 }
 #endif
 
-RegMaskGrowable::RegMaskGrowable() : RegMaskGrowable(Compile::current()->comp_arena()) {}
+RegMaskDynamic::RegMaskDynamic() : RegMaskDynamic(Compile::current()->comp_arena()) {}
 
-RegMaskGrowable::RegMaskGrowable(const RegMask& rm)
-  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}
+RegMaskDynamic::RegMaskDynamic(const RegMask& rm)
+  : RegMaskDynamic(rm, Compile::current()->comp_arena()) {}
 
-RegMaskGrowable::RegMaskGrowable(const RegMaskGrowable& rm)
-  : RegMaskGrowable(rm, Compile::current()->comp_arena()) {}
+RegMaskDynamic::RegMaskDynamic(const RegMaskDynamic& rm)
+  : RegMaskDynamic(rm, Compile::current()->comp_arena()) {}

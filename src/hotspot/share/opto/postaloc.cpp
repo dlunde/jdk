@@ -174,7 +174,6 @@ int PhaseChaitin::use_prior_register( Node *n, uint idx, Node *def, Block *curre
   const LRG &def_lrg = lrgs(_lrg_map.live_range_id(def));
   OptoReg::Name def_reg = def_lrg.reg();
   const RegMask &use_mask = n->in_RegMask(idx);
-  bool can_use = use_mask.Member(def_reg);
   bool can_use = ( UseNewCode || RegMask::can_represent(def_reg) ?
                      (use_mask.Member(def_reg))
                    : (use_mask.is_AllStack() != 0) );

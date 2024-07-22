@@ -34,7 +34,7 @@
 
 class LRG;
 class RegMaskStatic;
-class RegMaskGrowable;
+class RegMaskDynamic;
 
 //-------------Non-zero bit search methods used by RegMask---------------------
 // Find lowest 1, undefined if empty/0
@@ -636,7 +636,7 @@ class RegMaskStatic final : public RegMask {
 
 // Dynamically expanding register mask required when, e.g., compiling methods
 // with a very large number of parameters.
-class RegMaskGrowable final : public RegMask {
+class RegMaskDynamic final : public RegMask {
 
   // Where to allocate
   Arena* _arena;
@@ -668,20 +668,20 @@ class RegMaskGrowable final : public RegMask {
 
  public:
 
-  RegMaskGrowable();
-  RegMaskGrowable(Arena* arena) : RegMask(_RM_SIZE), _arena(arena) {
+  RegMaskDynamic();
+  RegMaskDynamic(Arena* arena) : RegMask(_RM_SIZE), _arena(arena) {
     _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, _RM_SIZE);
     memset(_RM_UP, 0, sizeof(uintptr_t) * _RM_SIZE);
   }
 
-  RegMaskGrowable(const RegMask& rm);
-  RegMaskGrowable(const RegMask& rm, Arena* arena)
+  RegMaskDynamic(const RegMask& rm);
+  RegMaskDynamic(const RegMask& rm, Arena* arena)
     : RegMask(rm.rm_size(), rm.offset()), _arena(arena) {
       _RM_UP = NEW_ARENA_ARRAY(_arena, uintptr_t, rm.rm_size());
       _copy(rm,*this);
     }
 
-  RegMaskGrowable(const RegMaskGrowable& rm);
+  RegMaskDynamic(const RegMaskDynamic& rm);
 
   void Insert(OptoReg::Name reg) {
     int reg_offset = reg - offset_bits();
@@ -694,13 +694,13 @@ class RegMaskGrowable final : public RegMask {
     RegMask::Insert(reg);
   }
 
-  RegMaskGrowable& operator= (const RegMaskGrowable& rm) {
+  RegMaskDynamic& operator= (const RegMaskDynamic& rm) {
     _alloc(rm.rm_size());
     _copy(rm,*this);
     return *this;
   }
 
-  virtual RegMaskGrowable& operator= (const RegMask& rm) override {
+  virtual RegMaskDynamic& operator= (const RegMask& rm) override {
     _alloc(rm.rm_size());
     _copy(rm,*this);
     return *this;
