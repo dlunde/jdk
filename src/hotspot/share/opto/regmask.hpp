@@ -52,7 +52,7 @@ static unsigned int find_highest_bit(uintptr_t mask) {
 // just a collection of Register numbers.
 
 // The ADLC defines 2 macros, RM_SIZE and FORALL_BODY.
-// RM_SIZE is the standard size of a register mask in 32-bit words.
+// RM_SIZE is the size of a static register mask in 32-bit words.
 // FORALL_BODY replicates a BODY macro once per word in the register mask.
 // The usage is somewhat clumsy and limited to the regmask.[h,c]pp files.
 // However, it means the ADLC can redefine the unroll macro and all loops
@@ -131,6 +131,7 @@ class RegMask {
   }
 
  public:
+  enum { CHUNK_SIZE = _RM_SIZE * BitsPerWord };
 
   unsigned int rm_size() const { return _rm_size; }
   unsigned int rm_size_bits() const { return _rm_size * BitsPerWord; }
@@ -486,6 +487,16 @@ class RegMask {
   static const RegMaskStatic Empty;   // Common empty mask
   static const RegMaskStatic All;     // Common all mask
 
+  static bool can_represent(OptoReg::Name reg, unsigned int size = 1) {
+    // NOTE: MAX2(1U,size) in computation reflects the usage of the last
+    //       bit of the regmask as an infinite stack flag.
+    return (int)reg < (int)(CHUNK_SIZE - MAX2(1U,size));
+  }
+  static bool can_represent_arg(OptoReg::Name reg) {
+    // NOTE: SlotsPerVecZ in computation reflects the need
+    //       to keep mask aligned for largest value (VecZ).
+    return can_represent(reg, SlotsPerVecZ);
+  }
 };
 
 class RegMaskIterator {

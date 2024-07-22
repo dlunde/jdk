@@ -1384,6 +1384,7 @@ static OptoReg::Name find_first_set(LRG &lrg, RegMaskGrowable mask) {
   if (lrg.is_scalable()) {
     // a physical register is found
     if (OptoReg::is_reg(assigned)) {
+      assert(!lrg.mask().is_offset(), "sanity");
       return assigned;
     }
 
