@@ -118,7 +118,7 @@ static const uintptr_t low_bits[5] = { fives, // 0x5555..55
 
 // Clear out partial bits; leave only bit pairs
 void RegMask::clear_to_pairs() {
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
     bits &= ((bits & fives) << 1U); // 1 hi-bit set for each pair
@@ -134,7 +134,7 @@ bool RegMask::is_misaligned_pair() const {
 
 bool RegMask::is_aligned_pairs() const {
   // Assert that the register mask contains only bit pairs.
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
     while (bits) {              // Check bits for pairing
@@ -180,7 +180,7 @@ bool RegMask::is_bound1() const {
 bool RegMask::is_bound_pair() const {
   if (is_AllStack()) return false;
 
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     if (_RM_UP[i] != 0) {               // Found some bits
       unsigned int bit_index = find_lowest_bit(_RM_UP[i]);
@@ -243,7 +243,7 @@ OptoReg::Name RegMask::find_first_set(LRG &lrg, const int size) const {
   } else {
     assert(is_aligned_sets(size), "mask is not aligned, adjacent sets");
   }
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     if (_RM_UP[i]) {                // Found some bits
       // Convert to bit number, return hi bit in pair
@@ -258,7 +258,7 @@ void RegMask::clear_to_sets(const unsigned int size) {
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   uintptr_t low_bits_mask = low_bits[size >> 2U];
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
@@ -286,7 +286,7 @@ void RegMask::smear_to_sets(const unsigned int size) {
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   uintptr_t low_bits_mask = low_bits[size >> 2U];
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
@@ -316,7 +316,7 @@ bool RegMask::is_aligned_sets(const unsigned int size) const {
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
   uintptr_t low_bits_mask = low_bits[size >> 2U];
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     uintptr_t bits = _RM_UP[i];
     while (bits) {              // Check bits for pairing
@@ -343,7 +343,7 @@ bool RegMask::is_aligned_sets(const unsigned int size) const {
 bool RegMask::is_bound_set(const unsigned int size) const {
   if (is_AllStack()) return false;
   assert(1 <= size && size <= 16, "update low bits table");
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     if (_RM_UP[i] != 0) {       // Found some bits
       unsigned bit_index = find_lowest_bit(_RM_UP[i]);
@@ -396,7 +396,7 @@ bool RegMask::is_UP() const {
 // Compute size of register mask in bits
 uint RegMask::Size() const {
   uint sum = 0;
-  assert(valid_watermarks(), "sanity");
+  assert(is_valid(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     sum += population_count(_RM_UP[i]);
   }

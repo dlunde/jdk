@@ -33,6 +33,7 @@ class RTMLockingCounters;
 
 //------------------------------BoxLockNode------------------------------------
 class BoxLockNode : public Node {
+  friend class Node;
 private:
   const int         _slot; // stack slot
   RegMaskStatic _inmask; // OptoReg corresponding to stack slot

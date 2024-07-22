@@ -127,7 +127,7 @@ class RegMask {
           sizeof(uintptr_t) * (dst._rm_size - src._rm_size));
     }
     dst.set_AllStack(src.is_AllStack());
-    assert(dst.valid_watermarks(), "post-condition");
+    assert(dst.is_valid(), "post-condition");
   }
 
  public:
@@ -180,7 +180,7 @@ class RegMask {
   // Test for being a not-empty mask (ignoring registers included through the
   // all-stack flag).
   bool is_NotEmpty() const {
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
     uintptr_t tmp = 0;
     for (unsigned i = _lwm; i <= _hwm; i++) {
       tmp |= _RM_UP[i];
@@ -190,7 +190,7 @@ class RegMask {
 
   // Find lowest-numbered register from mask, or BAD if mask is empty.
   OptoReg::Name find_first_elem() const {
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
     for (unsigned i = _lwm; i <= _hwm; i++) {
       uintptr_t bits = _RM_UP[i];
       if (bits) {
@@ -203,7 +203,7 @@ class RegMask {
   // Get highest-numbered register from mask, or BAD if mask is empty. Ignores
   // registers included through the all-stack flag.
   OptoReg::Name find_last_elem() const {
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
     // Careful not to overflow if _lwm == 0
     unsigned i = _hwm + 1;
     while (i > _lwm) {
@@ -219,9 +219,9 @@ class RegMask {
   void clear_to_pairs();
 
 #ifdef ASSERT
-  // Verify watermarks are sane, i.e., within bounds and that no
-  // register words below or above the watermarks have bits set.
-  bool valid_watermarks() const {
+  virtual bool is_valid() const {
+    // Verify watermarks are sane, i.e., within bounds and that no
+    // register words below or above the watermarks have bits set.
     assert(_hwm < _rm_size, "_hwm out of range: %d", _hwm);
     assert(_lwm < _rm_size, "_lwm out of range: %d", _lwm);
     for (unsigned i = 0; i < _lwm; i++) {
@@ -273,7 +273,7 @@ class RegMask {
   // included through the all-stack flag.
   bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "offset mismatch");
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(is_valid() && rm.is_valid(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     uintptr_t result = 0;
@@ -293,7 +293,7 @@ class RegMask {
     _hwm = 0;
     memset(_RM_UP, 0, sizeof(uintptr_t) * _rm_size);
     set_AllStack(false);
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // Fill a register mask with 1's
@@ -308,7 +308,7 @@ class RegMask {
     _hwm = _rm_max();
     memset(_RM_UP, 0xFF, sizeof(uintptr_t) * _rm_size);
     set_AllStack(true);
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // Fill a register mask with 1's from the given register.
@@ -319,7 +319,7 @@ class RegMask {
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
     assert(r < rm_size_bits(), "register outside mask");
-    assert(valid_watermarks(), "pre-condition");
+    assert(is_valid(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     _RM_UP[index] |= (uintptr_t(-1) << (r & _WordBitMask));
     if (index < _rm_max()) {
@@ -328,7 +328,7 @@ class RegMask {
     if (index < _lwm) _lwm = index;
     _hwm = _rm_max();
     set_AllStack();
-    assert(valid_watermarks(), "post-condition");
+    assert(is_valid(), "post-condition");
   }
 
   // Insert register into mask
@@ -339,12 +339,12 @@ class RegMask {
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
     assert(r < rm_size_bits(), "register outside mask");
-    assert(valid_watermarks(), "pre-condition");
+    assert(is_valid(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     if (index > _hwm) _hwm = index;
     if (index < _lwm) _lwm = index;
     _RM_UP[index] |= (uintptr_t(1) << (r & _WordBitMask));
-    assert(valid_watermarks(), "post-condition");
+    assert(is_valid(), "post-condition");
   }
 
   // Remove register from mask
@@ -360,7 +360,7 @@ class RegMask {
   virtual void OR(const RegMask &rm) {
     assert(_offset == rm._offset, "offset mismatch");
     assert(_rm_size >= rm._rm_size, "argument RegMask is too big");
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(is_valid() && rm.is_valid(), "sanity");
     // OR widens the live range
     if (_lwm > rm._lwm) _lwm = rm._lwm;
     if (_hwm < rm._hwm) _hwm = rm._hwm;
@@ -375,14 +375,14 @@ class RegMask {
       _hwm = _rm_max();
     }
     set_AllStack(is_AllStack() || rm.is_AllStack());
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // AND 'rm' into 'this'
   virtual void AND(const RegMask &rm) {
     assert(_offset == rm._offset, "offset mismatch");
     assert(_rm_size >= rm._rm_size, "argument RegMask is too big");
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(is_valid() && rm.is_valid(), "sanity");
     // Compute AND with all words from rm. Do not evaluate words outside the
     // current watermark range, as they are already zero and an &= would not
     // change that
@@ -406,13 +406,13 @@ class RegMask {
       _hwm = rm._hwm;
     }
     set_AllStack(is_AllStack() && rm.is_AllStack());
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // Subtract 'rm' from 'this'. Unlike other operations such as AND and OR,
   // also supports masks of different offsets.
   virtual void SUBTRACT(const RegMask &rm) {
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(is_valid() && rm.is_valid(), "sanity");
     // Various translations due to differing offsets
     int rm_index_diff = _offset - rm._offset;
     int rm_hwm_tr = (int)rm._hwm - rm_index_diff;
@@ -435,13 +435,13 @@ class RegMask {
       _hwm = MAX2(rm_rm_max_tr,0);
     }
     set_AllStack(is_AllStack() && !rm.is_AllStack());
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // Subtract 'rm' from 'this', but ignore everything in 'rm' that does not
   // overlap with us.
   void SUBTRACT_inner(const RegMask &rm) {
-    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(is_valid() && rm.is_valid(), "sanity");
     // Various translations due to differing offsets
     int rm_index_diff = _offset - rm._offset;
     int rm_hwm_tr = (int)rm._hwm - rm_index_diff;
@@ -455,7 +455,7 @@ class RegMask {
       assert(i + rm_index_diff >= 0, "sanity");
       _RM_UP[i] &= ~rm._RM_UP[i + rm_index_diff];
     }
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
   }
 
   // Roll over the register mask, exposing a new set of stack slots for the
@@ -474,7 +474,7 @@ class RegMask {
   void dump(outputStream *st = tty) const; // Print a mask
 
   bool is_AllStack_only() const {
-    assert(valid_watermarks(), "sanity");
+    assert(is_valid(), "sanity");
     uintptr_t tmp = 0;
     for (unsigned i = _lwm; i <= _hwm; i++) {
       tmp |= _RM_UP[i];
@@ -598,13 +598,13 @@ class RegMaskStatic final : public RegMask {
     if (_RM_UP[_RM_MAX] & (uintptr_t(1) << _WordBitMask)) {
       set_AllStack();
     }
-    assert(valid_watermarks(), "post-condition");
+    assert(is_valid(), "post-condition");
   }
 
   // Construct an empty mask
   RegMaskStatic() : RegMask(_RM_SIZE), _RM_STORAGE() {
     _RM_I = _RM_STORAGE;
-    assert(valid_watermarks(), "post-condition");
+    assert(is_valid(), "post-condition");
   }
 
   // Construct a mask with a single bit
@@ -631,6 +631,19 @@ class RegMaskStatic final : public RegMask {
     _copy(rm,*this);
     return *this;
   }
+
+  void synchronize() {
+    _RM_I = _RM_STORAGE;
+  }
+
+#ifdef ASSERT
+  virtual bool is_valid() const override {
+    // Verify that _RM_I/_RM_UP still points to _RM_STORAGE. This can get out
+    // of sync if the object is cloned or moved incorrectly.
+    assert(_RM_I == _RM_STORAGE, "incorrectly moved RegMaskStatic");
+    return RegMask::is_valid();
+  }
+#endif // !ASSERT
 
 };
 
@@ -687,7 +700,7 @@ class RegMaskDynamic final : public RegMask {
     int reg_offset = reg - offset_bits();
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
-    assert(valid_watermarks(), "pre-condition");
+    assert(is_valid(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);
@@ -725,7 +738,7 @@ class RegMaskDynamic final : public RegMask {
     int reg_offset = reg - offset_bits();
     assert(reg_offset >= 0, "register outside mask");
     unsigned r = (unsigned)reg_offset;
-    assert(valid_watermarks(), "pre-condition");
+    assert(is_valid(), "pre-condition");
     unsigned index = r >> _LogWordBits;
     unsigned int min_size = index + 1;
     _grow(min_size);
