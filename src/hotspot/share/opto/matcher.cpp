@@ -48,13 +48,13 @@
 OptoReg::Name OptoReg::c_frame_pointer;
 
 const RegMask *Matcher::idealreg2regmask[_last_machine_leaf];
-RegMaskStatic Matcher::mreg2regmask[_last_Mach_Reg];
-RegMaskStatic Matcher::caller_save_regmask;
-RegMaskStatic Matcher::caller_save_regmask_exclude_soe;
-RegMaskStatic Matcher::mh_caller_save_regmask;
-RegMaskStatic Matcher::mh_caller_save_regmask_exclude_soe;
-RegMaskStatic Matcher::STACK_ONLY_mask;
-RegMaskStatic Matcher::c_frame_ptr_mask;
+RegMask Matcher::mreg2regmask[_last_Mach_Reg];
+RegMask Matcher::caller_save_regmask;
+RegMask Matcher::caller_save_regmask_exclude_soe;
+RegMask Matcher::mh_caller_save_regmask;
+RegMask Matcher::mh_caller_save_regmask_exclude_soe;
+RegMask Matcher::STACK_ONLY_mask;
+RegMask Matcher::c_frame_ptr_mask;
 const uint Matcher::_begin_rematerialize = _BEGIN_REMATERIALIZE;
 const uint Matcher::_end_rematerialize   = _END_REMATERIALIZE;
 
@@ -229,8 +229,8 @@ void Matcher::match( ) {
   BasicType *sig_bt        = NEW_RESOURCE_ARRAY( BasicType, argcnt );
   VMRegPair *vm_parm_regs  = NEW_RESOURCE_ARRAY( VMRegPair, argcnt );
   _parm_regs               = NEW_RESOURCE_ARRAY( OptoRegPair, argcnt );
-  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMaskStatic, argcnt );
-  new(_calling_convention_mask) RegMaskStatic[argcnt];
+  _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMask, argcnt );
+  new(_calling_convention_mask) RegMask[argcnt];
   uint i;
   for( i = 0; i<argcnt; i++ ) {
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();
@@ -443,9 +443,9 @@ void Matcher::match( ) {
 // instructions.  It also adds edgs to define the save-on-entry values (and of
 // course gives them a mask).
 
-static RegMaskStatic *init_input_masks( uint size, RegMask &ret_adr, RegMask &fp ) {
-  RegMaskStatic *rms = NEW_RESOURCE_ARRAY( RegMaskStatic, size );
-  new(rms) RegMaskStatic[size];
+static RegMask *init_input_masks( uint size, RegMask &ret_adr, RegMask &fp ) {
+  RegMask *rms = NEW_RESOURCE_ARRAY( RegMask, size );
+  new(rms) RegMask[size];
   // Do all the pre-defined register masks
   rms[TypeFunc::Control  ] = RegMask::Empty;
   rms[TypeFunc::I_O      ] = RegMask::Empty;
@@ -481,11 +481,11 @@ int Matcher::scalable_predicate_reg_slots() {
 void Matcher::init_first_stack_mask() {
 
   // Allocate storage for spill masks as masks for the appropriate load type.
-  RegMaskStatic *rms = (RegMaskStatic*)C->comp_arena()->AmallocWords(sizeof(RegMaskStatic) * NOF_STACK_MASKS);
+  RegMask *rms = (RegMask*)C->comp_arena()->AmallocWords(sizeof(RegMask) * NOF_STACK_MASKS);
 
   // Initialize empty placeholder masks into the newly allocated arena
   for (int i = 0; i < NOF_STACK_MASKS; i++) {
-    new (rms + i) RegMaskStatic();
+    new (rms + i) RegMask();
   }
 
   idealreg2spillmask  [Op_RegN] = &rms[0];
@@ -552,11 +552,11 @@ void Matcher::init_first_stack_mask() {
   C->FIRST_STACK_mask().Set_All_From(_out_arg_limit);
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
-  RegMaskStatic aligned_stack_mask(C->FIRST_STACK_mask());
+  RegMask aligned_stack_mask(C->FIRST_STACK_mask());
   // Keep spill masks aligned.
   aligned_stack_mask.clear_to_pairs();
   assert(aligned_stack_mask.is_AllStack(), "should be infinite stack");
-  RegMaskStatic scalable_stack_mask(aligned_stack_mask);
+  RegMask scalable_stack_mask(aligned_stack_mask);
 
   *idealreg2spillmask[Op_RegP] = *idealreg2regmask[Op_RegP];
 #ifdef _LP64
@@ -800,7 +800,7 @@ void Matcher::Fixup_Save_On_Entry( ) {
   // The type for doubles and longs has a count of 2, but
   // there is only 1 returned value
   uint ret_edge_cnt = TypeFunc::Parms + ((C->tf()->range()->cnt() == TypeFunc::Parms) ? 0 : 1);
-  RegMaskStatic *ret_rms  = init_input_masks( ret_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
+  RegMask *ret_rms  = init_input_masks( ret_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
   // Returns have 0 or 1 returned values depending on call signature.
   // Return register is specified by return_value in the AD file.
   if (ret_edge_cnt > TypeFunc::Parms)
@@ -808,7 +808,7 @@ void Matcher::Fixup_Save_On_Entry( ) {
 
   // Input RegMask array shared by all Rethrows.
   uint reth_edge_cnt = TypeFunc::Parms+1;
-  RegMaskStatic *reth_rms  = init_input_masks( reth_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
+  RegMask *reth_rms  = init_input_masks( reth_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
   // Rethrow takes exception oop only, but in the argument 0 slot.
   OptoReg::Name reg = find_receiver();
   if (reg >= 0) {
@@ -821,11 +821,11 @@ void Matcher::Fixup_Save_On_Entry( ) {
 
   // Input RegMask array shared by all TailCalls
   uint tail_call_edge_cnt = TypeFunc::Parms+2;
-  RegMaskStatic *tail_call_rms = init_input_masks( tail_call_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
+  RegMask *tail_call_rms = init_input_masks( tail_call_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
 
   // Input RegMask array shared by all TailJumps
   uint tail_jump_edge_cnt = TypeFunc::Parms+2;
-  RegMaskStatic *tail_jump_rms = init_input_masks( tail_jump_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
+  RegMask *tail_jump_rms = init_input_masks( tail_jump_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
 
   // TailCalls have 2 returned values (target & moop), whose masks come
   // from the usual MachNode/MachOper mechanism.  Find a sample
@@ -855,7 +855,7 @@ void Matcher::Fixup_Save_On_Entry( ) {
 
   // Input RegMask array shared by all Halts
   uint halt_edge_cnt = TypeFunc::Parms;
-  RegMaskStatic *halt_rms = init_input_masks( halt_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
+  RegMask *halt_rms = init_input_masks( halt_edge_cnt + soe_cnt, _return_addr_mask, c_frame_ptr_mask );
 
   // Capture the return input masks into each exit flavor
   for( i=1; i < root->req(); i++ ) {
@@ -999,7 +999,7 @@ void Matcher::init_spill_mask( Node *ret ) {
 
   // Also exclude the register we use to save the SP for MethodHandle
   // invokes to from the corresponding MH debug masks
-  const RegMaskStatic sp_save_mask = method_handle_invoke_SP_save_mask();
+  const RegMask sp_save_mask = method_handle_invoke_SP_save_mask();
   mh_caller_save_regmask.OR(sp_save_mask);
   mh_caller_save_regmask_exclude_soe.OR(sp_save_mask);
 
@@ -1341,9 +1341,9 @@ MachNode *Matcher::match_sfpt( SafePointNode *sfpt ) {
   msfpt->set_adr_type(sfpt->adr_type());
 
   // Allocate a private array of RegMasks.  These RegMasks are not shared.
-  msfpt->_in_rms = NEW_RESOURCE_ARRAY( RegMaskStatic, cnt );
+  msfpt->_in_rms = NEW_RESOURCE_ARRAY( RegMask, cnt );
   // Empty them all.
-  for (uint i = 0; i < cnt; i++) ::new (&(msfpt->_in_rms[i])) RegMaskStatic();
+  for (uint i = 0; i < cnt; i++) ::new (&(msfpt->_in_rms[i])) RegMask();
 
   // Do all the pre-defined non-Empty register masks
   msfpt->_in_rms[TypeFunc::ReturnAdr] = _return_addr_mask;
@@ -1408,7 +1408,7 @@ MachNode *Matcher::match_sfpt( SafePointNode *sfpt ) {
     // and over the entire method.
     for( i = 0; i < argcnt; i++ ) {
       // Address of incoming argument mask to fill in
-      RegMaskStatic *rm = &mcall->_in_rms[i+TypeFunc::Parms];
+      RegMask *rm = &mcall->_in_rms[i+TypeFunc::Parms];
       VMReg first = parm_regs[i].first();
       VMReg second = parm_regs[i].second();
       if(!first->is_valid() &&

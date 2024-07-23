@@ -1119,12 +1119,12 @@ source_hpp %{
 #include "opto/convertnode.hpp"
 #include "runtime/objectMonitor.hpp"
 
-extern RegMaskStatic _ANY_REG32_mask;
-extern RegMaskStatic _ANY_REG_mask;
-extern RegMaskStatic _PTR_REG_mask;
-extern RegMaskStatic _NO_SPECIAL_REG32_mask;
-extern RegMaskStatic _NO_SPECIAL_REG_mask;
-extern RegMaskStatic _NO_SPECIAL_PTR_REG_mask;
+extern RegMask _ANY_REG32_mask;
+extern RegMask _ANY_REG_mask;
+extern RegMask _PTR_REG_mask;
+extern RegMask _NO_SPECIAL_REG32_mask;
+extern RegMask _NO_SPECIAL_REG_mask;
+extern RegMask _NO_SPECIAL_PTR_REG_mask;
 
 // Figure out which register class each belongs in: rc_int, rc_float or
 // rc_stack.
@@ -1211,12 +1211,12 @@ source %{
     return 0;
   }
 
-  RegMaskStatic _ANY_REG32_mask;
-  RegMaskStatic _ANY_REG_mask;
-  RegMaskStatic _PTR_REG_mask;
-  RegMaskStatic _NO_SPECIAL_REG32_mask;
-  RegMaskStatic _NO_SPECIAL_REG_mask;
-  RegMaskStatic _NO_SPECIAL_PTR_REG_mask;
+  RegMask _ANY_REG32_mask;
+  RegMask _ANY_REG_mask;
+  RegMask _PTR_REG_mask;
+  RegMask _NO_SPECIAL_REG32_mask;
+  RegMask _NO_SPECIAL_REG_mask;
+  RegMask _NO_SPECIAL_PTR_REG_mask;
 
   void reg_mask_init() {
     // We derive below RegMask(s) from the ones which are auto-generated from
@@ -2468,30 +2468,30 @@ bool Matcher::use_asm_for_ldiv_by_con(jlong divisor) {
   return false;
 }
 
-RegMaskStatic Matcher::divI_proj_mask() {
+RegMask Matcher::divI_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for MODI projection of divmodI.
-RegMaskStatic Matcher::modI_proj_mask() {
+RegMask Matcher::modI_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for DIVL projection of divmodL.
-RegMaskStatic Matcher::divL_proj_mask() {
+RegMask Matcher::divL_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for MODL projection of divmodL.
-RegMaskStatic Matcher::modL_proj_mask() {
+RegMask Matcher::modL_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
-const RegMaskStatic Matcher::method_handle_invoke_SP_save_mask() {
+const RegMask Matcher::method_handle_invoke_SP_save_mask() {
   return FP_REG_mask();
 }
 

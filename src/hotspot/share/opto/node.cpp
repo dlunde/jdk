@@ -543,12 +543,10 @@ Node *Node::clone() const {
     }
   }
   if (this->is_MachProj()) {
-    MachProjNode *mach = n->as_MachProj();
-    mach->_rout.synchronize();
+    // TODO?
   }
   if (this->is_BoxLock()) {
-    BoxLockNode *box = n->as_BoxLock();
-    box->_inmask.synchronize();
+    // TODO?
   }
   if (n->is_Call()) {
     // CallGenerator is linked to the original node.

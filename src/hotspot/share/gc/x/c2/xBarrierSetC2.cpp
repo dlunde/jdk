@@ -72,7 +72,7 @@ public:
 
     RegMask* live = (RegMask*)_live[node->_idx];
     if (live == nullptr) {
-      live = new (Compile::current()->comp_arena()->AmallocWords(sizeof(RegMaskStatic))) RegMaskStatic();
+      live = new (Compile::current()->comp_arena()->AmallocWords(sizeof(RegMask))) RegMask();
       _live.map(node->_idx, (Node*)live);
     }
 
@@ -498,19 +498,19 @@ void XBarrierSetC2::compute_liveness_at_stubs() const {
   Arena* const A = Thread::current()->resource_area();
   PhaseCFG* const cfg = C->cfg();
   PhaseRegAlloc* const regalloc = C->regalloc();
-  RegMaskStatic* const live = NEW_ARENA_ARRAY(A, RegMaskStatic, cfg->number_of_blocks() * sizeof(RegMaskStatic));
+  RegMask* const live = NEW_ARENA_ARRAY(A, RegMask, cfg->number_of_blocks() * sizeof(RegMask));
   XBarrierSetAssembler* const bs = XBarrierSet::assembler();
   Block_List worklist;
 
   for (uint i = 0; i < cfg->number_of_blocks(); ++i) {
-    new ((void*)(live + i)) RegMaskStatic();
+    new ((void*)(live + i)) RegMask();
     worklist.push(cfg->get_block(i));
   }
 
   while (worklist.size() > 0) {
     const Block* const block = worklist.pop();
     RegMask& old_live = live[block->_pre_order];
-    RegMaskStatic new_live;
+    RegMask new_live;
 
     // Initialize to union of successors
     for (uint i = 0; i < block->_num_succs; i++) {

@@ -1131,30 +1131,30 @@ bool Matcher::use_asm_for_ldiv_by_con( jlong divisor ) {
 }
 
 // Register for DIVI projection of divmodI
-RegMaskStatic Matcher::divI_proj_mask() {
+RegMask Matcher::divI_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for MODI projection of divmodI
-RegMaskStatic Matcher::modI_proj_mask() {
+RegMask Matcher::modI_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for DIVL projection of divmodL
-RegMaskStatic Matcher::divL_proj_mask() {
+RegMask Matcher::divL_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
 // Register for MODL projection of divmodL
-RegMaskStatic Matcher::modL_proj_mask() {
+RegMask Matcher::modL_proj_mask() {
   ShouldNotReachHere();
-  return RegMaskStatic();
+  return RegMask();
 }
 
-const RegMaskStatic Matcher::method_handle_invoke_SP_save_mask() {
+const RegMask Matcher::method_handle_invoke_SP_save_mask() {
   return FP_REGP_mask();
 }
 

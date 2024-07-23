@@ -35,8 +35,8 @@ class RTMLockingCounters;
 class BoxLockNode : public Node {
   friend class Node;
 private:
-  const int         _slot; // stack slot
-  RegMaskStatic _inmask; // OptoReg corresponding to stack slot
+  const int     _slot; // stack slot
+  RegMask     _inmask; // OptoReg corresponding to stack slot
   enum {
     Regular = 0,       // Normal locking region
     Local,             // EA found that local not escaping object is used for locking

@@ -678,7 +678,6 @@ Compile::Compile( ciEnv* ci_env, ciMethod* target, int osr_bci,
                   _replay_inline_data(nullptr),
                   _java_calls(0),
                   _inner_loops(0),
-                  _FIRST_STACK_mask(),
                   _interpreter_frame_size(0),
                   _output(nullptr)
 #ifndef PRODUCT
@@ -958,7 +957,6 @@ Compile::Compile( ciEnv* ci_env,
     _replay_inline_data(nullptr),
     _java_calls(0),
     _inner_loops(0),
-    _FIRST_STACK_mask(),
     _interpreter_frame_size(0),
     _output(nullptr),
 #ifndef PRODUCT
