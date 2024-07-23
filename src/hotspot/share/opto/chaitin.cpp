@@ -1557,7 +1557,6 @@ uint PhaseChaitin::Select( ) {
       while ((neighbor = elements.next()) != 0) {
         LRG &nlrg = lrgs(neighbor);
         OptoReg::Name nreg = nlrg.reg();
-        // Only subtract masks in the same chunk
         // The neighbor might be a spill_reg. In this case, do not exclude the
         // corresponding mask.
         if (nreg < LRG::SPILL_REG) {
