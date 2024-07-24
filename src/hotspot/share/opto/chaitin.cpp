@@ -1455,7 +1455,6 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     } else if( !lrg.mask().is_offset() ) {
       // Choose a color which is legal for him
       RegMask tempmask = lrg.mask();
-      assert(!lrgs(copy_lrg).mask().is_offset(), "Should hold? Otherwise AND below doesn't make sense");
       tempmask.AND(lrgs(copy_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
       OptoReg::Name reg = find_first_set(lrg, tempmask);
@@ -1482,6 +1481,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     lrg.Insert(reg);
     if(OptoReg::is_valid(reg2)
         && OptoReg::is_reg(reg2 - lrg.mask().offset_bits())) {
+      assert(!lrg.mask().is_offset(), "true?");
       reg = reg2;
     }
   }
@@ -1506,7 +1506,6 @@ OptoReg::Name PhaseChaitin::choose_color( LRG &lrg ) {
          lrg.num_regs() == 2,"fat projs exactly color" );
   assert( !lrg.mask().is_offset(), "always color in 1st chunk" );
   // Return the highest element in the set.
-  assert(!lrg.mask().is_AllStack(), "find_last_elem returns INT_MAX if all-stack flag is set");
   return lrg.mask().find_last_elem();
 }
 
@@ -1557,8 +1556,9 @@ uint PhaseChaitin::Select( ) {
       while ((neighbor = elements.next()) != 0) {
         LRG &nlrg = lrgs(neighbor);
         OptoReg::Name nreg = nlrg.reg();
-        // The neighbor might be a spill_reg. In this case, do not exclude the
-        // corresponding mask.
+        // The neighbor might be a spill_reg. In this case, exclusion of its
+        // color will be a no-op, since the spill_reg is in outer space. In
+        // this case, do not exclude the corresponding mask.
         if (nreg < LRG::SPILL_REG) {
 #ifndef PRODUCT
           uint size = lrg->mask().Size();
@@ -1606,7 +1606,7 @@ uint PhaseChaitin::Select( ) {
     // Did we get a color?
     else if( OptoReg::is_valid(reg)) {
 #ifndef PRODUCT
-      RegMask avail_rm(lrg->mask());
+      RegMask avail_rm = lrg->mask();
 #endif
 
       // Record selected register

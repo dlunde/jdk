@@ -196,7 +196,7 @@ void Matcher::match( ) {
   }
   // One-time initialization of some register masks.
   init_spill_mask( C->root()->in(1) );
-  _return_addr_mask.Insert(return_addr());
+  _return_addr_mask = return_addr();
 #ifdef _LP64
   // Pointers take 2 slots in 64-bit land
   _return_addr_mask.Insert(OptoReg::add(return_addr(),1));
@@ -213,7 +213,7 @@ void Matcher::match( ) {
     OptoRegPair regs = return_value(ireg);
 
     // And mask for same
-    _return_value_mask.Insert(regs.first());
+    _return_value_mask = RegMask(regs.first());
     if( OptoReg::is_valid(regs.second()) )
       _return_value_mask.Insert(regs.second());
   }
@@ -552,11 +552,11 @@ void Matcher::init_first_stack_mask() {
   C->FIRST_STACK_mask().Set_All_From(_out_arg_limit);
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
-  RegMask aligned_stack_mask(C->FIRST_STACK_mask());
+  RegMask aligned_stack_mask = C->FIRST_STACK_mask();
   // Keep spill masks aligned.
   aligned_stack_mask.clear_to_pairs();
   assert(aligned_stack_mask.is_AllStack(), "should be infinite stack");
-  RegMask scalable_stack_mask(aligned_stack_mask);
+  RegMask scalable_stack_mask = aligned_stack_mask;
 
   *idealreg2spillmask[Op_RegP] = *idealreg2regmask[Op_RegP];
 #ifdef _LP64
@@ -964,7 +964,7 @@ void Matcher::init_spill_mask( Node *ret ) {
   if( idealreg2regmask[Op_RegI] ) return; // One time only init
 
   OptoReg::c_frame_pointer = c_frame_pointer();
-  c_frame_ptr_mask.Insert(c_frame_pointer());
+  c_frame_ptr_mask = c_frame_pointer();
 #ifdef _LP64
   // pointers are twice as big
   c_frame_ptr_mask.Insert(OptoReg::add(c_frame_pointer(),1));

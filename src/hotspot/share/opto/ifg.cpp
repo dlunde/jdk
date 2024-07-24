@@ -711,7 +711,7 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
     }
 
     // Remove bound register(s) from 'l's choices
-    RegMask old(interfering_lrg.mask());
+    RegMask old = interfering_lrg.mask();
     uint old_size = interfering_lrg.mask_size();
 
     // Remove the bits from LRG 'rm' from LRG 'l' so 'l' no
@@ -720,7 +720,7 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
     assert(!interfering_lrg._is_vector || !interfering_lrg._fat_proj, "sanity");
 
     if (interfering_lrg.num_regs() > 1 && !interfering_lrg._fat_proj) {
-      RegMask r2mask(rm);
+      RegMask r2mask = rm;
       // Leave only aligned set of bits.
       r2mask.smear_to_sets(interfering_lrg.num_regs());
       // It includes vector case.

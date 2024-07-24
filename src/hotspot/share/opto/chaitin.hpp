@@ -103,7 +103,7 @@ public:
   }
 
 private:
-  RegMask _mask;        // Allowed registers for this LRG
+  RegMask _mask;                // Allowed registers for this LRG
   uint _mask_size;              // cache of _mask.Size();
 public:
   int compute_mask_size() const { return _mask.is_AllStack() ? AllStack_size : _mask.Size(); }
