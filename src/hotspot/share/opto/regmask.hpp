@@ -30,6 +30,7 @@
 #include "utilities/count_leading_zeros.hpp"
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "memory/arena.hpp"
 
 class LRG;
 
@@ -122,34 +123,60 @@ class RegMask {
   // The maximum word index
   unsigned int _rm_max() const { return _rm_size - 1U; }
 
-  // Grow the register mask to ensure it can fit at least min_size words.
-  void _grow(unsigned int min_size, bool init = true);
+  // Return a suitable arena for register mask allocation.
+  static Arena* _get_arena();
 
-  // Common copying functionality
-  static void _copy(const RegMask& src, RegMask& dst) {
-    assert(dst._offset == src._offset, "offset mismatch");
-    dst._grow(src._rm_size, false);
-    dst._hwm = src._hwm;
-    dst._lwm = src._lwm;
-    // Copy everything from the source
-    memcpy(dst._RM_UP, src._RM_UP, sizeof(uintptr_t) * _RM_SIZE);
+  // Grow the register mask to ensure it can fit at least min_size words.
+  void _grow(unsigned int min_size, bool init = true) {
+    if(min_size > _rm_size) {
+      Arena* _arena = _get_arena();
+      unsigned int old_size = _rm_size;
+      unsigned int old_ext_size = old_size - _RM_SIZE;
+      unsigned int new_ext_size = min_size - _RM_SIZE;
+      _rm_size = min_size;
+      if (_RM_UP_EXT == nullptr) {
+        assert(old_ext_size == 0, "sanity");
+        _RM_UP_EXT = NEW_ARENA_ARRAY(_arena, uintptr_t, new_ext_size);
+      } else {
+        _RM_UP_EXT = REALLOC_ARENA_ARRAY(_arena, uintptr_t, _RM_UP_EXT,
+                                         old_ext_size, new_ext_size);
+      }
+      if (init) {
+        int fill = 0;
+        if(is_AllStack()) {
+          fill = 0xFF;
+          _hwm = _rm_max();
+        }
+        _set_range(old_size, fill, _rm_size - old_size);
+      }
+    }
+  }
+
+  // Make this a copy of src
+  void _copy(const RegMask& src) {
+    assert(_offset == src._offset, "offset mismatch");
+    _hwm = src._hwm;
+    _lwm = src._lwm;
+    // Copy base mask from the source
+    memcpy(_RM_UP, src._RM_UP, sizeof(uintptr_t) * _RM_SIZE);
+    _all_stack = src._all_stack;
     if (src._RM_UP_EXT != nullptr) {
       assert(src._rm_size > _RM_SIZE, "sanity");
-      memcpy(dst._RM_UP_EXT, src._RM_UP_EXT,
+      _grow(src._rm_size, false);
+      memcpy(_RM_UP_EXT, src._RM_UP_EXT,
              sizeof(uintptr_t) * (src._rm_size - _RM_SIZE));
     }
-    // If the source is smaller than the destination, we need to set the gap
+    // If the source is smaller than this, we need to set the gap
     // according to the all-stack flag.
-    if (src._rm_size < dst._rm_size ) {
+    if (src._rm_size < _rm_size ) {
       int value = 0;
       if (src.is_AllStack()) {
         value = 0xFF;
-        dst._hwm = dst._rm_max();
+        _hwm = _rm_max();
       }
-      dst._set_range(src._rm_size, value, dst._rm_size - src._rm_size);
+      _set_range(src._rm_size, value, _rm_size - src._rm_size);
     }
-    dst.set_AllStack(src.is_AllStack());
-    assert(dst.valid_watermarks(), "post-condition");
+    assert(valid_watermarks(), "post-condition");
   }
 
   void _set_range(unsigned int start, int value, unsigned int range) {
@@ -237,11 +264,11 @@ class RegMask {
   }
 
   RegMask(const RegMask& rm): _rm_size(rm._rm_size), _offset(rm._offset) {
-    _copy(rm,*this);
+    _copy(rm);
   }
 
   RegMask& operator= (const RegMask& rm) {
-    _copy(rm,*this);
+    _copy(rm);
     return *this;
   }
 
@@ -534,7 +561,7 @@ class RegMask {
     for (int i = lwm; i <= hwm; i++) {
       assert(i + rm_index_diff < (int)rm._rm_size, "sanity");
       assert(i + rm_index_diff >= 0, "sanity");
-      _RM_UP[i] &= ~rm._RM_UP[i + rm_index_diff];
+      _rm_up(i) &= ~rm._rm_up(i + rm_index_diff);
     }
     assert(valid_watermarks(), "sanity");
   }
