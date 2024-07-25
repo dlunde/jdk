@@ -1354,7 +1354,7 @@ void PhaseChaitin::Simplify( ) {
 
 // Is 'reg' register legal for 'lrg'?
 static bool is_legal_reg(LRG &lrg, OptoReg::Name reg) {
-  if (lrg.mask().Member(reg)) {
+  if (reg < LRG::SPILL_REG && lrg.mask().Member(reg)) {
     // RA uses OptoReg which represent the highest element of a registers set.
     // For example, vectorX (128bit) on x86 uses [XMM,XMMb,XMMc,XMMd] set
     // in which XMMd is used by RA to represent such vectors. A double value

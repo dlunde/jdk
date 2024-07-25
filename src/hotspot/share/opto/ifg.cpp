@@ -722,19 +722,19 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
     if (interfering_lrg.num_regs() > 1 && !interfering_lrg._fat_proj) {
       RegMask r2mask = rm;
       // Leave only aligned set of bits.
-      r2mask.smear_to_sets_fast(interfering_lrg.num_regs());
+      r2mask.smear_to_sets(interfering_lrg.num_regs());
       // It includes vector case.
-      interfering_lrg.SUBTRACT_fast(r2mask);
-      interfering_lrg.compute_set_mask_size_fast();
+      interfering_lrg.SUBTRACT(r2mask);
+      interfering_lrg.compute_set_mask_size();
     } else if (r_size != 1) {
       // fat proj
-      interfering_lrg.SUBTRACT_fast(rm);
-      interfering_lrg.compute_set_mask_size_fast();
+      interfering_lrg.SUBTRACT(rm);
+      interfering_lrg.compute_set_mask_size();
     } else {
       // Common case: size 1 bound removal
-      OptoReg::Name r_reg = rm.find_first_elem_fast();
-      if (interfering_lrg.mask().Member_fast(r_reg)) {
-        interfering_lrg.Remove_fast(r_reg);
+      OptoReg::Name r_reg = rm.find_first_elem();
+      if (interfering_lrg.mask().Member(r_reg)) {
+        interfering_lrg.Remove(r_reg);
         interfering_lrg.set_mask_size(interfering_lrg.mask().is_AllStack() ? LRG::AllStack_size : old_size - 1);
       }
     }

@@ -107,7 +107,7 @@ class RegMask {
 
   // Convenience method to access word i in the register mask.
   const uintptr_t& _rm_up(unsigned int i) const {
-    if (_RM_UP_EXT == nullptr || i < _RM_SIZE) {
+    if (!UseNewCode || _RM_UP_EXT == nullptr || i < _RM_SIZE) {
       assert(i < _RM_SIZE, "sanity");
       return _RM_UP[i];
     } else {
@@ -160,22 +160,24 @@ class RegMask {
     // Copy base mask from the source
     memcpy(_RM_UP, src._RM_UP, sizeof(uintptr_t) * _RM_SIZE);
     _all_stack = src._all_stack;
-    /* if (src._RM_UP_EXT != nullptr) { */
-    /*   assert(src._rm_size > _RM_SIZE, "sanity"); */
-    /*   _grow(src._rm_size, false); */
-    /*   memcpy(_RM_UP_EXT, src._RM_UP_EXT, */
-    /*          sizeof(uintptr_t) * (src._rm_size - _RM_SIZE)); */
-    /* } */
-    /* // If the source is smaller than this, we need to set the gap */
-    /* // according to the all-stack flag. */
-    /* if (src._rm_size < _rm_size ) { */
-    /*   int value = 0; */
-    /*   if (src.is_AllStack()) { */
-    /*     value = 0xFF; */
-    /*     _hwm = _rm_max(); */
-    /*   } */
-    /*   _set_range(src._rm_size, value, _rm_size - src._rm_size); */
-    /* } */
+    if(UseNewCode) {
+      if (src._RM_UP_EXT != nullptr) {
+        assert(src._rm_size > _RM_SIZE, "sanity");
+        _grow(src._rm_size, false);
+        memcpy(_RM_UP_EXT, src._RM_UP_EXT,
+            sizeof(uintptr_t) * (src._rm_size - _RM_SIZE));
+      }
+      // If the source is smaller than this, we need to set the gap
+      // according to the all-stack flag.
+      if (src._rm_size < _rm_size ) {
+        int value = 0;
+        if (src.is_AllStack()) {
+          value = 0xFF;
+          _hwm = _rm_max();
+        }
+        _set_range(src._rm_size, value, _rm_size - src._rm_size);
+      }
+    }
     assert(valid_watermarks(), "post-condition");
   }
 
@@ -274,6 +276,7 @@ class RegMask {
 
   // Check for register being in mask (excluding inclusion by the all-stack flag).
   bool Member(OptoReg::Name reg) const {
+    if(!UseNewCode) { return Member_fast(reg); }
     reg = reg - offset_bits();
     if (reg < 0) { return false; }
     if (reg >= (int)rm_size_bits()) { return false; }
@@ -302,6 +305,7 @@ class RegMask {
 
   // Find lowest-numbered register from mask, or BAD if mask is empty.
   OptoReg::Name find_first_elem() const {
+    if (!UseNewCode) { return find_first_elem_fast(); }
     assert(valid_watermarks(), "sanity");
     for (unsigned i = _lwm; i <= _hwm; i++) {
       uintptr_t bits = _rm_up(i);
@@ -405,6 +409,19 @@ class RegMask {
   // Fast overlap test.  Non-zero if any registers in common. Ignores registers
   // included through the all-stack flag.
   bool overlap(const RegMask &rm) const {
+    if (!UseNewCode) { return overlap_fast(rm); }
+    assert(_offset == rm._offset, "offset mismatch");
+    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    unsigned hwm = MIN2(_hwm, rm._hwm);
+    unsigned lwm = MAX2(_lwm, rm._lwm);
+    uintptr_t result = 0;
+    for (unsigned i = lwm; i <= hwm; i++) {
+      result |= _rm_up(i) & rm._rm_up(i);
+    }
+    return result;
+  }
+
+  bool overlap_fast(const RegMask &rm) const {
     assert(_offset == rm._offset, "offset mismatch");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
@@ -484,6 +501,7 @@ class RegMask {
 
   // Remove register from mask
   void Remove(OptoReg::Name reg) {
+    if (!UseNewCode) { Remove_fast(reg); return; }
     reg = reg - offset_bits();
     assert(reg >= 0, "register outside mask");
     assert(reg < (int)rm_size_bits(), "register outside mask");
@@ -553,6 +571,7 @@ class RegMask {
 
   // Subtract 'rm' from 'this'.
   void SUBTRACT(const RegMask &rm) {
+    if (!UseNewCode) { SUBTRACT_fast(rm); return; }
     assert(_offset == rm._offset, "offset mismatch");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     _grow(rm._rm_size);

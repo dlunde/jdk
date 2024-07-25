@@ -287,6 +287,10 @@ void RegMask::clear_to_sets(const unsigned int size) {
 
 // Smear out partial bits to aligned adjacent bit sets
 void RegMask::smear_to_sets(const unsigned int size) {
+  if(!UseNewCode) {
+    RegMask::smear_to_sets_fast(size);
+    return;
+  }
   if (size == 1) return;
   assert(2 <= size && size <= 16, "update low bits table");
   assert(is_power_of_2(size), "sanity");
@@ -427,6 +431,7 @@ bool RegMask::is_UP() const {
 
 // Compute size of register mask in bits
 uint RegMask::Size() const {
+  if(!UseNewCode) { return RegMask::Size_fast(); }
   uint sum = 0;
   assert(valid_watermarks(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
