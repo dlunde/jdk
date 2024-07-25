@@ -33,6 +33,7 @@
 #include "opto/castnode.hpp"
 #include "opto/cfgnode.hpp"
 #include "opto/connode.hpp"
+#include "opto/locknode.hpp"
 #include "opto/loopnode.hpp"
 #include "opto/machnode.hpp"
 #include "opto/matcher.hpp"
@@ -540,6 +541,12 @@ Node *Node::clone() const {
     for ( uint i = 0; i < nopnds; ++i ) {
       to[i] = from[i]->clone();
     }
+  }
+  if (this->is_MachProj()) {
+    // TODO?
+  }
+  if (this->is_BoxLock()) {
+    // TODO?
   }
   if (n->is_Call()) {
     // CallGenerator is linked to the original node.

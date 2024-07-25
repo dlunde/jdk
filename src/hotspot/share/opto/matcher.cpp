@@ -228,6 +228,7 @@ void Matcher::match( ) {
   VMRegPair *vm_parm_regs  = NEW_RESOURCE_ARRAY( VMRegPair, argcnt );
   _parm_regs               = NEW_RESOURCE_ARRAY( OptoRegPair, argcnt );
   _calling_convention_mask = NEW_RESOURCE_ARRAY( RegMask, argcnt );
+  new(_calling_convention_mask) RegMask[argcnt];
   uint i;
   for( i = 0; i<argcnt; i++ ) {
     sig_bt[i] = domain->field_at(i+TypeFunc::Parms)->basic_type();
@@ -441,6 +442,7 @@ void Matcher::match( ) {
 
 static RegMask *init_input_masks( uint size, RegMask &ret_adr, RegMask &fp ) {
   RegMask *rms = NEW_RESOURCE_ARRAY( RegMask, size );
+  new(rms) RegMask[size];
   // Do all the pre-defined register masks
   rms[TypeFunc::Control  ] = RegMask::Empty;
   rms[TypeFunc::I_O      ] = RegMask::Empty;
@@ -542,12 +544,7 @@ void Matcher::init_first_stack_mask() {
   // Add in all bits past the outgoing argument area
   guarantee(RegMask::can_represent_arg(OptoReg::add(_out_arg_limit,-1)),
             "must be able to represent all call arguments in reg mask");
-  OptoReg::Name init = _out_arg_limit;
-  for (i = init; RegMask::can_represent(i); i = OptoReg::add(i,1)) {
-    C->FIRST_STACK_mask().Insert(i);
-  }
-  // Finally, set the "infinite stack" bit.
-  C->FIRST_STACK_mask().set_AllStack();
+  C->FIRST_STACK_mask().Set_All_From(_out_arg_limit);
 
   // Make spill masks.  Registers for their class, plus FIRST_STACK_mask.
   RegMask aligned_stack_mask = C->FIRST_STACK_mask();
@@ -970,14 +967,10 @@ void Matcher::init_spill_mask( Node *ret ) {
 
   // Start at OptoReg::stack0()
   STACK_ONLY_mask.Clear();
-  OptoReg::Name init = OptoReg::stack2reg(0);
   // STACK_ONLY_mask is all stack bits
-  OptoReg::Name i;
-  for (i = init; RegMask::can_represent(i); i = OptoReg::add(i,1))
-    STACK_ONLY_mask.Insert(i);
-  // Also set the "infinite stack" bit.
-  STACK_ONLY_mask.set_AllStack();
+  STACK_ONLY_mask.Set_All_From(OptoReg::stack2reg(0));
 
+  OptoReg::Name i;
   for (i = OptoReg::Name(0); i < OptoReg::Name(_last_Mach_Reg); i = OptoReg::add(i, 1)) {
     // Copy the register names over into the shared world.
     // SharedInfo::regName[i] = regName[i];

@@ -31,6 +31,7 @@
 
 //------------------------------BoxLockNode------------------------------------
 class BoxLockNode : public Node {
+  friend class Node;
 private:
   const int     _slot; // stack slot
   RegMask     _inmask; // OptoReg corresponding to stack slot
