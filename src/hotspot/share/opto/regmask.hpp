@@ -160,22 +160,22 @@ class RegMask {
     // Copy base mask from the source
     memcpy(_RM_UP, src._RM_UP, sizeof(uintptr_t) * _RM_SIZE);
     _all_stack = src._all_stack;
-    if (src._RM_UP_EXT != nullptr) {
-      assert(src._rm_size > _RM_SIZE, "sanity");
-      _grow(src._rm_size, false);
-      memcpy(_RM_UP_EXT, src._RM_UP_EXT,
-             sizeof(uintptr_t) * (src._rm_size - _RM_SIZE));
-    }
-    // If the source is smaller than this, we need to set the gap
-    // according to the all-stack flag.
-    if (src._rm_size < _rm_size ) {
-      int value = 0;
-      if (src.is_AllStack()) {
-        value = 0xFF;
-        _hwm = _rm_max();
-      }
-      _set_range(src._rm_size, value, _rm_size - src._rm_size);
-    }
+    /* if (src._RM_UP_EXT != nullptr) { */
+    /*   assert(src._rm_size > _RM_SIZE, "sanity"); */
+    /*   _grow(src._rm_size, false); */
+    /*   memcpy(_RM_UP_EXT, src._RM_UP_EXT, */
+    /*          sizeof(uintptr_t) * (src._rm_size - _RM_SIZE)); */
+    /* } */
+    /* // If the source is smaller than this, we need to set the gap */
+    /* // according to the all-stack flag. */
+    /* if (src._rm_size < _rm_size ) { */
+    /*   int value = 0; */
+    /*   if (src.is_AllStack()) { */
+    /*     value = 0xFF; */
+    /*     _hwm = _rm_max(); */
+    /*   } */
+    /*   _set_range(src._rm_size, value, _rm_size - src._rm_size); */
+    /* } */
     assert(valid_watermarks(), "post-condition");
   }
 
@@ -281,6 +281,14 @@ class RegMask {
     return _rm_up(r >> _LogWordBits) & (uintptr_t(1) << (r & _WordBitMask));
   }
 
+  bool Member_fast(OptoReg::Name reg) const {
+    /* reg = reg - offset_bits(); */
+    /* if (reg < 0) { return false; } */
+    /* if (reg >= (int)rm_size_bits()) { return false; } */
+    unsigned int r = (unsigned int)reg;
+    return _RM_UP[r >> _LogWordBits] & (uintptr_t(1) << (r & _WordBitMask));
+  }
+
   // Test for being a not-empty mask (ignoring registers included through the
   // all-stack flag).
   bool is_NotEmpty() const {
@@ -299,6 +307,17 @@ class RegMask {
       uintptr_t bits = _rm_up(i);
       if (bits) {
         return OptoReg::Name(offset_bits() + (i << _LogWordBits) + find_lowest_bit(bits));
+      }
+    }
+    return OptoReg::Name(OptoReg::Bad);
+  }
+
+  OptoReg::Name find_first_elem_fast() const {
+    assert(valid_watermarks(), "sanity");
+    for (unsigned i = _lwm; i <= _hwm; i++) {
+      uintptr_t bits = _RM_UP[i];
+      if (bits) {
+        return OptoReg::Name((i << _LogWordBits) + find_lowest_bit(bits));
       }
     }
     return OptoReg::Name(OptoReg::Bad);
@@ -372,6 +391,7 @@ class RegMask {
   void clear_to_sets(const unsigned int size);
   // Smear out partial bits to aligned adjacent bit sets.
   void smear_to_sets(const unsigned int size);
+  void smear_to_sets_fast(const unsigned int size);
   // Test that the mask contains only aligned adjacent bit sets
   bool is_aligned_sets(const unsigned int size) const;
 
@@ -389,12 +409,11 @@ class RegMask {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
-    for (unsigned int i = lwm; i <= hwm; i++) {
-      if(_rm_up(i) & rm._rm_up(i)) {
-        return true;
-      }
+    uintptr_t result = 0;
+    for (unsigned i = lwm; i <= hwm; i++) {
+      result |= _RM_UP[i] & rm._RM_UP[i];
     }
-    return false;
+    return result;
   }
 
   // Special test for register pressure based splitting
@@ -472,6 +491,13 @@ class RegMask {
     _rm_up(r >> _LogWordBits) &= ~(uintptr_t(1) << (r & _WordBitMask));
   }
 
+  void Remove_fast(OptoReg::Name reg) {
+    assert(reg >= 0, "register outside mask");
+    assert(reg < (int)rm_size_bits(), "register outside mask");
+    unsigned r = (unsigned)reg;
+    _RM_UP[r >> _LogWordBits] &= ~(uintptr_t(1) << (r & _WordBitMask));
+  }
+
   // OR 'rm' into 'this'
   void OR(const RegMask &rm) {
     assert(_offset == rm._offset, "offset mismatch");
@@ -545,6 +571,26 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
+  void SUBTRACT_fast(const RegMask &rm) {
+    assert(_offset == rm._offset, "offset mismatch");
+    /* assert(!is_AllStack() && !rm.is_AllStack(), ""); */
+    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    /* _grow(rm._rm_size); */
+    unsigned int hwm = MIN2(_hwm, rm._hwm);
+    unsigned int lwm = MAX2(_lwm, rm._lwm);
+    for (unsigned int i = lwm; i <= hwm; i++) {
+      _RM_UP[i] &= ~rm._RM_UP[i];
+    }
+    // If rm is smaller than our high watermark and has the all-stack flag set,
+    // we need to set all bits in the gap to 0.
+    /* if (rm.is_AllStack() && _hwm > rm._rm_max() ) { */
+    /*   _set_range(rm.rm_size(), 0, _hwm - rm._rm_max()); */
+    /*   _hwm = rm._rm_max(); */
+    /* } */
+    /* set_AllStack(is_AllStack() && !rm.is_AllStack()); */
+    assert(valid_watermarks(), "sanity");
+  }
+
   // Subtract 'rm' from 'this', but ignore everything in 'rm' that does not
   // overlap with us. Supports masks of differing offsets. Treats the all_stack
   // of rm as false regardless of its actual value.
@@ -576,6 +622,7 @@ class RegMask {
 
   // Compute size of register mask: number of bits
   uint Size() const;
+  uint Size_fast() const;
 
 #ifndef PRODUCT
   void print() const { dump(); }

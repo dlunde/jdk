@@ -107,6 +107,7 @@ private:
   uint _mask_size;              // cache of _mask.Size();
 public:
   int compute_mask_size() const { return _mask.is_AllStack() ? AllStack_size : _mask.Size(); }
+  int compute_mask_size_fast() const { return _mask.is_AllStack() ? AllStack_size : _mask.Size_fast(); }
   void set_mask_size( int size ) {
     assert((size == (int)AllStack_size) || (size == (int)_mask.Size()), "");
     _mask_size = size;
@@ -123,6 +124,7 @@ public:
 #endif
   }
   void compute_set_mask_size() { set_mask_size(compute_mask_size()); }
+  void compute_set_mask_size_fast() { set_mask_size(compute_mask_size_fast()); }
   int mask_size() const { assert( _msize_valid, "mask size not valid" );
                           return _mask_size; }
   // Get the last mask size computed, even if it does not match the
@@ -133,6 +135,7 @@ public:
   void init_mask() { new(&_mask) RegMask(); }
   void AND( const RegMask &rm ) { _mask.AND(rm); debug_only(_msize_valid=0;)}
   void SUBTRACT( const RegMask &rm ) { _mask.SUBTRACT(rm); debug_only(_msize_valid=0;)}
+  void SUBTRACT_fast( const RegMask &rm ) { _mask.SUBTRACT_fast(rm); debug_only(_msize_valid=0;)}
   void SUBTRACT_inner( const RegMask &rm ) { _mask.SUBTRACT_inner(rm); debug_only(_msize_valid=0;)}
   void Clear()   { _mask.Clear()  ; debug_only(_msize_valid=1); _mask_size = 0; }
   void Set_All() { _mask.Set_All(); debug_only(_msize_valid=1); _mask_size = _mask.rm_size_bits(); }
@@ -140,6 +143,7 @@ public:
 
   void Insert( OptoReg::Name reg ) { _mask.Insert(reg);  debug_only(_msize_valid=0;) }
   void Remove( OptoReg::Name reg ) { _mask.Remove(reg);  debug_only(_msize_valid=0;) }
+  void Remove_fast( OptoReg::Name reg ) { _mask.Remove_fast(reg);  debug_only(_msize_valid=0;) }
   void clear_to_sets()  { _mask.clear_to_sets(_num_regs); debug_only(_msize_valid=0;) }
 
 private:

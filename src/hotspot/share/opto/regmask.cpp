@@ -314,6 +314,34 @@ void RegMask::smear_to_sets(const unsigned int size) {
   assert(is_aligned_sets(size), "mask is not aligned, adjacent sets");
 }
 
+void RegMask::smear_to_sets_fast(const unsigned int size) {
+  if (size == 1) return;
+  assert(2 <= size && size <= 16, "update low bits table");
+  assert(is_power_of_2(size), "sanity");
+  assert(valid_watermarks(), "sanity");
+  uintptr_t low_bits_mask = low_bits[size >> 2U];
+  for (unsigned i = _lwm; i <= _hwm; i++) {
+    uintptr_t bits = _RM_UP[i];
+    uintptr_t sets = 0;
+    for (unsigned j = 0; j < size; j++) {
+      sets |= (bits & low_bits_mask);  // collect partial bits
+      bits  = bits >> 1U;
+    }
+    sets |= (sets << 1U);           // Smear 1 lo-bit  into a set
+    if (size > 2) {
+      sets |= (sets << 2U);         // Smear 2 lo-bits into a set
+      if (size > 4) {
+        sets |= (sets << 4U);       // Smear 4 lo-bits into a set
+        if (size > 8) {
+          sets |= (sets << 8U);     // Smear 8 lo-bits into a set
+        }
+      }
+    }
+    _RM_UP[i] = sets;
+  }
+  assert(is_aligned_sets(size), "mask is not aligned, adjacent sets");
+}
+
 // Assert that the register mask contains only bit sets.
 bool RegMask::is_aligned_sets(const unsigned int size) const {
   if (size == 1) return true;
@@ -403,6 +431,15 @@ uint RegMask::Size() const {
   assert(valid_watermarks(), "sanity");
   for (unsigned i = _lwm; i <= _hwm; i++) {
     sum += population_count(_rm_up(i));
+  }
+  return sum;
+}
+
+uint RegMask::Size_fast() const {
+  uint sum = 0;
+  assert(valid_watermarks(), "sanity");
+  for (unsigned i = _lwm; i <= _hwm; i++) {
+    sum += population_count(_RM_UP[i]);
   }
   return sum;
 }
