@@ -394,11 +394,12 @@ class RegMask {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
-    uintptr_t result = 0;
     for (unsigned i = lwm; i <= hwm; i++) {
-      result |= _rm_up(i) & rm._rm_up(i);
+      if(_rm_up(i) & rm._rm_up(i)) {
+        return true;
+      }
     }
-    return result;
+    return false;
   }
 
   // Special test for register pressure based splitting
