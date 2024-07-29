@@ -286,8 +286,8 @@ class RegMask {
     return _rm_up(r >> _LogWordBits) & (uintptr_t(1) << (r & _WordBitMask));
   }
 
-  // Test for being a not-empty mask (ignoring registers included through the
-  // all-stack flag).
+  // Test for being a not-empty mask.  Ignores registers included through the
+  // all-stack flag.
   bool is_NotEmpty() const {
     assert(valid_watermarks(), "sanity");
     uintptr_t tmp = 0;
@@ -333,10 +333,10 @@ class RegMask {
   bool valid_watermarks() const {
     assert(_hwm < _rm_size, "_hwm out of range: %d", _hwm);
     assert(_lwm < _rm_size, "_lwm out of range: %d", _lwm);
-    for (unsigned int i = 0; i < _lwm; i++) {
+    for (unsigned i = 0; i < _lwm; i++) {
       assert(_rm_up(i) == 0, "_lwm too high: %d regs at: %d", _lwm, i);
     }
-    for (unsigned int i = _hwm + 1; i < _rm_size; i++) {
+    for (unsigned i = _hwm + 1; i < _rm_size; i++) {
       assert(_rm_up(i) == 0, "_hwm too low: %d regs at: %d", _hwm, i);
     }
     return true;
@@ -387,18 +387,19 @@ class RegMask {
   static int num_registers(uint ireg);
   static int num_registers(uint ireg, LRG &lrg);
 
-  // Fast overlap test.  Non-zero if any registers in common. Ignores registers
+  // Fast overlap test. Non-zero if any registers in common. Ignores registers
   // included through the all-stack flag.
   bool overlap(const RegMask &rm) const {
     assert(_offset == rm._offset, "offset mismatch");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
-    uintptr_t result = 0;
     for (unsigned i = lwm; i <= hwm; i++) {
-      result |= _rm_up(i) & rm._rm_up(i);
+      if(_rm_up(i) & rm._rm_up(i)) {
+        return true;
+      }
     }
-    return result;
+    return false;
   }
 
   // Special test for register pressure based splitting

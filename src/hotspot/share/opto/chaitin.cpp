@@ -1480,7 +1480,7 @@ OptoReg::Name PhaseChaitin::bias_color( LRG &lrg ) {
     OptoReg::Name reg2 = lrg.mask().find_first_elem();
     lrg.Insert(reg);
     if(OptoReg::is_valid(reg2)
-        && OptoReg::is_reg(reg2 - lrg.mask().offset_bits())) {
+         && OptoReg::is_reg(reg2 - lrg.mask().offset_bits())) {
       reg = reg2;
     }
   }
@@ -1547,7 +1547,7 @@ uint PhaseChaitin::Select( ) {
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
-    debug_only(RegMask orig_mask(lrg->mask());)
+    debug_only(RegMask orig_mask = lrg->mask();)
 
     if (!s->is_empty()) {
       IndexSetIterator elements(s);
