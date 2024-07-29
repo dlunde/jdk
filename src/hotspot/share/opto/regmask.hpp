@@ -550,9 +550,21 @@ class RegMask {
     assert(valid_watermarks(), "sanity");
   }
 
+  void SUBTRACT_fast(const RegMask &rm) {
+    assert(_offset == rm._offset, "offset mismatch");
+    assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
+    assert(!rm.is_AllStack(), "condition for the fast version");
+    _grow(rm._rm_size);
+    unsigned int hwm = MIN2(_hwm, rm._hwm);
+    unsigned int lwm = MAX2(_lwm, rm._lwm);
+    for (unsigned int i = lwm; i <= hwm; i++) {
+      _rm_up(i) &= ~rm._rm_up(i);
+    }
+  }
+
   // Subtract 'rm' from 'this', but ignore everything in 'rm' that does not
-  // overlap with us. Supports masks of differing offsets. Treats the all_stack
-  // of rm as false regardless of its actual value.
+  // overlap with us. Supports masks of differing offsets. Ignores and leaves
+  // the all_stack flag unchanged.
   void SUBTRACT_inner(const RegMask &rm) {
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
     // Various translations due to differing offsets

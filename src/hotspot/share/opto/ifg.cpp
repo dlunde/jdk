@@ -724,11 +724,11 @@ void PhaseChaitin::remove_bound_register_from_interfering_live_ranges(LRG& lrg, 
       // Leave only aligned set of bits.
       r2mask.smear_to_sets(interfering_lrg.num_regs());
       // It includes vector case.
-      interfering_lrg.SUBTRACT(r2mask);
+      interfering_lrg.SUBTRACT_fast(r2mask);
       interfering_lrg.compute_set_mask_size();
     } else if (r_size != 1) {
       // fat proj
-      interfering_lrg.SUBTRACT(rm);
+      interfering_lrg.SUBTRACT_fast(rm);
       interfering_lrg.compute_set_mask_size();
     } else {
       // Common case: size 1 bound removal
