@@ -739,7 +739,12 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     Block* store_block = get_block_for_node(store);
     assert(store_block != nullptr, "unused killing projections skipped above");
 
-    if (store->is_Phi()) {
+    if (store_block != early && store_block->dominates(early)) {
+      // The store which the current load must be above strictly dominates the
+      // earliest possible block. We have to bring LCA all the way up to the
+      // earliest block.
+      LCA = early;
+    } else if (store->is_Phi()) {
       // Loop-phis need to raise load before input. (Other phis are treated
       // as store below.)
       //
