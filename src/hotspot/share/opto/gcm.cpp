@@ -740,11 +740,32 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     assert(store_block != nullptr, "unused killing projections skipped above");
 
     if (store_block != early && store_block->dominates(early)) {
-      // The store which the current load must be above strictly dominates the
-      // earliest possible block. We have to bring LCA all the way up to the
-      // earliest block.
-      LCA = early;
-    } else if (store->is_Phi()) {
+      // It can occur that store_block strictly dominates the
+      // earliest possible block. We have to
+      //   (1) bring LCA all the way up to the earliest block, and
+      //   (2) insert anti-dependence edges to ALL stores in the earliest block.
+      // TODO Explain (2)
+      /* LCA = early; */
+      mem = store;
+      for (DUIterator_Fast imax, i = mem->fast_outs(imax); i < imax; i++) {
+        store = mem->fast_out(i);
+        if (!store->is_Phi()) {
+          // Be sure we don't get into combinatorial problems.
+          // (Allow phis to be repeated; they can merge two relevant states.)
+          uint j = worklist_visited.size();
+          for (; j > 0; j--) {
+            if (worklist_visited.at(j-1) == store)  break;
+          }
+          if (j > 0)  continue; // already on work list; do not repeat
+          worklist_visited.push(store);
+        }
+        worklist_mem.push(mem);
+        worklist_store.push(store);
+      }
+      continue;
+    }
+
+    if (store->is_Phi()) {
       // Loop-phis need to raise load before input. (Other phis are treated
       // as store below.)
       //
@@ -795,6 +816,9 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // Found a possibly-interfering store in the load's 'early' block.
       // This means 'load' cannot sink at all in the dominator tree.
       // Add an anti-dep edge, and squeeze 'load' into the highest block.
+      if(store == load->find_exact_control(load->in(0))) {
+        store->dump();
+      }
       assert(store != load->find_exact_control(load->in(0)), "dependence cycle found");
       if (verify) {
         assert(store->find_edge(load) != -1 || unrelated_load_in_store_null_block(store, load),
