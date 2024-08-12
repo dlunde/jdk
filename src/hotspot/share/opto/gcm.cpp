@@ -750,18 +750,38 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // It can occur that store_block strictly dominates the
       // earliest possible block. We have to
       //   (1) bring LCA all the way up to the earliest block, and
-      //   (2) insert anti-dependence edges to all stores in the earliest block.
+      //   (2) insert anti-dependence edges to all possibly interfering stores
+      //       in the earliest block.
       // Only (1) is not sufficient, as there may be stores in the block that
       // interfere and which we will never traverse.
       LCA = early;
+
+      ResourceMark rm;
+      VectorSet block_deps;
+      Node_List worklist;
+      worklist.push(load);
+      while (worklist.size() > 0) {
+        Node* n = worklist.pop();
+        block_deps.set(n->_idx);
+        for (uint i = 0; i < n->req(); i++) {
+          Node* in = n->in(i);
+          if (in && !block_deps.test(in->_idx)
+                && (!has_block(in) || get_block_for_node(in) == LCA)) {
+            worklist.push(in);
+          }
+        }
+      }
+
       for (uint i = 0; i < LCA->number_of_nodes(); i++) {
         Node* store = LCA->get_node(i);
         if (!store->is_MergeMem() && !store->is_Phi()
+              && !block_deps.test(store->_idx)
               && needs_anti_dependence(load, store, load_alias_idx)) {
           store->add_prec(load);
         }
       }
-      continue;
+
+      break;
     }
 
     if (store->is_Phi()) {
