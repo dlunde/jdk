@@ -562,6 +562,58 @@ bool PhaseCFG::unrelated_load_in_store_null_block(Node* store, Node* load) {
   return false;
 }
 
+// Check if we may need to add an anti-dependence edge between load and store.
+bool PhaseCFG::needs_anti_dependence(Node* load, Node* store, int load_alias_idx) {
+    uint op = store->Opcode();
+
+    if (op == Op_MachProj || op == Op_Catch) { return false; }
+    if (store->needs_anti_dependence_check()) { return false; }  // not really a store
+
+    // Compute the alias index.  Loads and stores with different alias
+    // indices do not need anti-dependence edges.  Wide MemBar's are
+    // anti-dependent on everything (except immutable memories).
+    const TypePtr* adr_type = store->adr_type();
+    if (!C->can_alias(adr_type, load_alias_idx)) { return false; }
+
+    // Most slow-path runtime calls do NOT modify Java memory, but
+    // they can block and so write Raw memory.
+    if (store->is_Mach()) {
+      MachNode* mstore = store->as_Mach();
+      if (load_alias_idx != Compile::AliasIdxRaw) {
+        // Check for call into the runtime using the Java calling
+        // convention (and from there into a wrapper); it has no
+        // _method.  Can't do this optimization for Native calls because
+        // they CAN write to Java memory.
+        if (mstore->ideal_Opcode() == Op_CallStaticJava) {
+          assert(mstore->is_MachSafePoint(), "");
+          MachSafePointNode* ms = (MachSafePointNode*) mstore;
+          assert(ms->is_MachCallJava(), "");
+          MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
+          if (mcj->_method == nullptr) {
+            // These runtime calls do not write to Java visible memory
+            // (other than Raw) and so do not require anti-dependence edges.
+            return false;
+          }
+        }
+        // Same for SafePoints: they read/write Raw but only read otherwise.
+        // This is basically a workaround for SafePoints only defining control
+        // instead of control + memory.
+        if (mstore->ideal_Opcode() == Op_SafePoint) { return false; }
+      } else {
+        // Some raw memory, such as the load of "top" at an allocation,
+        // can be control dependent on the previous safepoint. See
+        // comments in GraphKit::allocate_heap() about control input.
+        // Inserting an anti-dep between such a safepoint and a use
+        // creates a cycle, and will cause a subsequent failure in
+        // local scheduling.  (BugId 4919904)
+        // (%%% How can a control input be a safepoint and not a projection??)
+        if (mstore->ideal_Opcode() == Op_SafePoint && load->in(0) == mstore)
+          return false;
+      }
+    }
+    return true;
+}
+
 //--------------------------insert_anti_dependences---------------------------
 // A load may need to witness memory that nearby stores can overwrite.
 // For each nearby store, either insert an "anti-dependence" edge
@@ -685,52 +737,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       continue;
     }
 
-    if (op == Op_MachProj || op == Op_Catch)   continue;
-    if (store->needs_anti_dependence_check())  continue;  // not really a store
-
-    // Compute the alias index.  Loads and stores with different alias
-    // indices do not need anti-dependence edges.  Wide MemBar's are
-    // anti-dependent on everything (except immutable memories).
-    const TypePtr* adr_type = store->adr_type();
-    if (!C->can_alias(adr_type, load_alias_idx))  continue;
-
-    // Most slow-path runtime calls do NOT modify Java memory, but
-    // they can block and so write Raw memory.
-    if (store->is_Mach()) {
-      MachNode* mstore = store->as_Mach();
-      if (load_alias_idx != Compile::AliasIdxRaw) {
-        // Check for call into the runtime using the Java calling
-        // convention (and from there into a wrapper); it has no
-        // _method.  Can't do this optimization for Native calls because
-        // they CAN write to Java memory.
-        if (mstore->ideal_Opcode() == Op_CallStaticJava) {
-          assert(mstore->is_MachSafePoint(), "");
-          MachSafePointNode* ms = (MachSafePointNode*) mstore;
-          assert(ms->is_MachCallJava(), "");
-          MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
-          if (mcj->_method == nullptr) {
-            // These runtime calls do not write to Java visible memory
-            // (other than Raw) and so do not require anti-dependence edges.
-            continue;
-          }
-        }
-        // Same for SafePoints: they read/write Raw but only read otherwise.
-        // This is basically a workaround for SafePoints only defining control
-        // instead of control + memory.
-        if (mstore->ideal_Opcode() == Op_SafePoint)
-          continue;
-      } else {
-        // Some raw memory, such as the load of "top" at an allocation,
-        // can be control dependent on the previous safepoint. See
-        // comments in GraphKit::allocate_heap() about control input.
-        // Inserting an anti-dep between such a safepoint and a use
-        // creates a cycle, and will cause a subsequent failure in
-        // local scheduling.  (BugId 4919904)
-        // (%%% How can a control input be a safepoint and not a projection??)
-        if (mstore->ideal_Opcode() == Op_SafePoint && load->in(0) == mstore)
-          continue;
-      }
-    }
+    if (!needs_anti_dependence(load, store, load_alias_idx)) { continue; }
 
     // Identify a block that the current load must be above,
     // or else observe that 'store' is all the way up in the
@@ -743,24 +750,16 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // It can occur that store_block strictly dominates the
       // earliest possible block. We have to
       //   (1) bring LCA all the way up to the earliest block, and
-      //   (2) insert anti-dependence edges to ALL stores in the earliest block.
-      // TODO Explain (2)
-      /* LCA = early; */
-      mem = store;
-      for (DUIterator_Fast imax, i = mem->fast_outs(imax); i < imax; i++) {
-        store = mem->fast_out(i);
-        if (!store->is_Phi()) {
-          // Be sure we don't get into combinatorial problems.
-          // (Allow phis to be repeated; they can merge two relevant states.)
-          uint j = worklist_visited.size();
-          for (; j > 0; j--) {
-            if (worklist_visited.at(j-1) == store)  break;
-          }
-          if (j > 0)  continue; // already on work list; do not repeat
-          worklist_visited.push(store);
+      //   (2) insert anti-dependence edges to all stores in the earliest block.
+      // Only (1) is not sufficient, as there may be stores in the block that
+      // interfere and which we will never traverse.
+      LCA = early;
+      for (uint i = 0; i < LCA->number_of_nodes(); i++) {
+        Node* store = LCA->get_node(i);
+        if (!store->is_MergeMem() && !store->is_Phi()
+              && needs_anti_dependence(load, store, load_alias_idx)) {
+          store->add_prec(load);
         }
-        worklist_mem.push(mem);
-        worklist_store.push(store);
       }
       continue;
     }
@@ -816,9 +815,6 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // Found a possibly-interfering store in the load's 'early' block.
       // This means 'load' cannot sink at all in the dominator tree.
       // Add an anti-dep edge, and squeeze 'load' into the highest block.
-      if(store == load->find_exact_control(load->in(0))) {
-        store->dump();
-      }
       assert(store != load->find_exact_control(load->in(0)), "dependence cycle found");
       if (verify) {
         assert(store->find_edge(load) != -1 || unrelated_load_in_store_null_block(store, load),
