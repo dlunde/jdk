@@ -477,6 +477,10 @@ bool CompilerOracle::should_print_methods() {
   return has_command(CompileCommandEnum::Print);
 }
 
+bool CompilerOracle::should_ul() {
+  return has_command(CompileCommandEnum::UL);
+}
+
 // Tells whether there are any methods to collect memory statistics for
 bool CompilerOracle::should_collect_memstat() {
   return has_command(CompileCommandEnum::MemStat) || has_command(CompileCommandEnum::MemLimit);

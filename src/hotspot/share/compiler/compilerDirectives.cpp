@@ -212,6 +212,10 @@ bool DirectiveSet::should_print_memstat() const {
   return MemStatOption == (uintx)MemStatAction::print;
 }
 
+bool DirectiveSet::should_ul() const {
+  return !CompilerOracle::should_ul() || ULOption;
+}
+
 size_t DirectiveSet::mem_limit() const {
   return MemLimitOption < 0 ? -MemLimitOption : MemLimitOption;
 }

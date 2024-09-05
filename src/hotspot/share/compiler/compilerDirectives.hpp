@@ -154,6 +154,7 @@ public:
   bool is_c2(CompilerDirectives* directive) const;
   bool should_collect_memstat() const;
   bool should_print_memstat() const;
+  bool should_ul() const;
   size_t mem_limit() const;
   bool should_crash_at_mem_limit() const; // true: crash false: stop compilation
 
