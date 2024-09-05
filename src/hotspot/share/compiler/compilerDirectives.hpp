@@ -42,6 +42,7 @@
     cflags(BreakAtExecute,          bool, false, BreakAtExecute) \
     cflags(BreakAtCompile,          bool, false, BreakAtCompile) \
     cflags(Log,                     bool, LogCompilation, Unknown) \
+    cflags(UL,                      bool, false, UL) \
     cflags(MemLimit,                intx, 0, MemLimit) \
     cflags(MemStat,                 uintx, 0, MemStat) \
     cflags(PrintAssembly,           bool, PrintAssembly, PrintAssembly) \
