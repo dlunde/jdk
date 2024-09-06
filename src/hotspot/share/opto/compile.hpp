@@ -534,6 +534,18 @@ private:
     print_inlining_stream()->print("%s", ss.freeze());
   }
 
+  template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG,
+            LogTagType T2 = LogTag::__NO_TAG, LogTagType T3 = LogTag::__NO_TAG,
+            LogTagType T4 = LogTag::__NO_TAG,
+            LogTagType GuardTag = LogTag::__NO_TAG>
+  bool should_print_ul(LogLevelType level) {
+    return LogImpl<T0, T1, T2, T3, T4, GuardTag>::is_level(level) &&
+           C->directive()->should_ul();
+  }
+
+#define ul_enabled(C, level, ...)                                              \
+  (C->should_print_ul<LOG_TAGS(__VA_ARGS__)>(LogLevelType::level))
+
 #ifndef PRODUCT
   IdealGraphPrinter* igv_printer() { return _igv_printer; }
   void reset_igv_phase_iter(CompilerPhaseType cpt) { _igv_phase_iter[cpt] = 0; }
