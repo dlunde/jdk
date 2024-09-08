@@ -37,6 +37,7 @@
 #include "opto/predicates.hpp"
 #include "opto/rootnode.hpp"
 #include "opto/subnode.hpp"
+#include "logging/logStream.hpp"
 #include <fenv.h>
 #include <math.h>
 
@@ -1193,9 +1194,11 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     if (TraceLoopPredicate) {
       tty->print("Predicate invariant if%s: %d ", negated ? " negated" : "", new_predicate_iff->_idx);
       loop->dump_head();
-    } else if (TraceLoopOpts) {
-      tty->print("Predicate IC ");
-      loop->dump_head();
+    } else if (ul_enabled(C, Trace, jit, loopopts)) {
+      LogMessage(jit, loopopts) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print("Predicate IC ");
+      loop->dump_head(&st);
     }
 #endif
   } else if (cl != nullptr && loop->is_range_check_if(if_success_proj, this, invar DEBUG_ONLY(COMMA parse_predicate_proj))) {
@@ -1285,9 +1288,11 @@ bool PhaseIdealLoop::loop_predication_impl_helper(IdealLoopTree* loop, IfProjNod
     C->print_method(PHASE_AFTER_LOOP_PREDICATION_RC, 4, template_assertion_predicate_proj->in(0));
 
 #ifndef PRODUCT
-    if (TraceLoopOpts && !TraceLoopPredicate) {
-      tty->print("Predicate RC ");
-      loop->dump_head();
+    if (ul_enabled(C, Trace, jit, loopopts) && !TraceLoopPredicate) {
+      LogMessage(jit, loopopts) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print("Predicate RC ");
+      loop->dump_head(&st);
     }
 #endif
   } else {

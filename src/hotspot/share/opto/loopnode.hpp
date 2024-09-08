@@ -782,8 +782,8 @@ public:
   }
 
 #ifndef PRODUCT
-  void dump_head();       // Dump loop head only
-  void dump();            // Dump this loop recursively
+  void dump_head(outputStream* out = tty);       // Dump loop head only
+  void dump(outputStream* out = tty);            // Dump this loop recursively
 #endif
 
 #ifdef ASSERT
@@ -1703,7 +1703,7 @@ public:
   void dump_idom(Node* n) const { dump_idom(n, 1000); } // For debugging
   void dump_idom(Node* n, uint count) const;
   void get_idoms(Node* n, uint count, Unique_Node_List& idoms) const;
-  void dump(IdealLoopTree* loop, uint rpo_idx, Node_List &rpo_list) const;
+  void dump(IdealLoopTree* loop, uint rpo_idx, Node_List &rpo_list, outputStream* out = tty) const;
   IdealLoopTree* get_loop_idx(Node* n) const {
     // Dead nodes have no loop, so return the top level loop instead
     return _loop_or_ctrl[n->_idx] ? (IdealLoopTree*)_loop_or_ctrl[n->_idx] : _ltree_root;
@@ -1804,19 +1804,19 @@ public:
 
   ~AutoNodeBudget() {
 #ifndef PRODUCT
-    if (TraceLoopOpts) {
+    if (ul_enabled(_phase->C, Trace, jit, loopopts)) {
       uint request = _phase->nodes_required();
       uint delta   = _phase->C->live_nodes() - _nodes_at_begin;
 
       if (request < delta) {
-        tty->print_cr("Exceeding node budget: %d < %d", request, delta);
+        log_trace(jit, loopopts)("Exceeding node budget: %d < %d", request, delta);
       } else {
         uint const REQUIRE_MIN = PhaseIdealLoop::REQUIRE_MIN;
         // Identify the worst estimates as "poor" ones.
         if (request > REQUIRE_MIN && delta > 0) {
           if ((delta >  REQUIRE_MIN && request >  3 * delta) ||
               (delta <= REQUIRE_MIN && request > 10 * delta)) {
-            tty->print_cr("Poor node estimate: %d >> %d", request, delta);
+            log_trace(jit, loopopts)("Poor node estimate: %d >> %d", request, delta);
           }
         }
       }

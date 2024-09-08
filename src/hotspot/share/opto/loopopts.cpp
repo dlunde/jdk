@@ -44,6 +44,7 @@
 #include "opto/superword.hpp"
 #include "opto/vectornode.hpp"
 #include "utilities/macros.hpp"
+#include "logging/logStream.hpp"
 
 //=============================================================================
 //------------------------------split_thru_phi---------------------------------
@@ -862,12 +863,14 @@ Node *PhaseIdealLoop::conditional_move( Node *region ) {
     register_new_node( cmov, cmov_ctrl );
     _igvn.replace_node( phi, cmov );
 #ifndef PRODUCT
-    if (TraceLoopOpts) {
-      tty->print("CMOV  ");
-      r_loop->dump_head();
+    if (ul_enabled(C, Trace, jit, loopopts)) {
+      LogMessage(jit, loopopts) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print("CMOV  ");
+      r_loop->dump_head(&st);
       if (Verbose) {
-        bol->in(1)->dump(1);
-        cmov->dump(1);
+        bol->in(1)->dump(1, &st);
+        cmov->dump(1, &st);
       }
     }
     DEBUG_ONLY( if (VerifyLoopOptimizations) { verify(); } );
@@ -1461,9 +1464,10 @@ void PhaseIdealLoop::split_if_with_blocks_post(Node *n) {
 
     // Now split the IF
     C->print_method(PHASE_BEFORE_SPLIT_IF, 4, iff);
-    if ((PrintOpto && VerifyLoopOptimizations) || TraceLoopOpts) {
+    if ((PrintOpto && VerifyLoopOptimizations)) {
       tty->print_cr("Split-If");
     }
+    if (ul_enabled(C, Trace, jit, loopopts)) log_trace(jit, loopopts)("Split-If");
     do_split_if(iff);
     C->print_method(PHASE_AFTER_SPLIT_IF, 4, iff);
     return;
@@ -3797,9 +3801,11 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
   }
 
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("PartialPeel  ");
-    loop->dump_head();
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("PartialPeel  ");
+    loop->dump_head(&st);
   }
 
   if (TracePartialPeeling) {

@@ -46,6 +46,7 @@
 #include "opto/vectornode.hpp"
 #include "runtime/globals_extension.hpp"
 #include "runtime/stubRoutines.hpp"
+#include "logging/logStream.hpp"
 
 //------------------------------is_loop_exit-----------------------------------
 // Given an IfNode, return the loop-exiting projection or null if both
@@ -734,9 +735,11 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
   // no longer a 'main' loop; it will need new pre and post loops before
   // we can do further RCE.
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("Peel         ");
-    loop->dump_head();
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("Peel         ");
+    loop->dump_head(&st);
   }
 #endif
   LoopNode* head = loop->_head->as_Loop();
@@ -1543,12 +1546,14 @@ void PhaseIdealLoop::copy_assertion_predicates_to_main_loop(CountedLoopNode* pre
 void PhaseIdealLoop::insert_pre_post_loops(IdealLoopTree *loop, Node_List &old_new, bool peel_only) {
 
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
     if (peel_only)
-      tty->print("PeelMainPost ");
+      st.print("PeelMainPost ");
     else
-      tty->print("PreMainPost  ");
-    loop->dump_head();
+      st.print("PreMainPost  ");
+    loop->dump_head(&st);
   }
 #endif
   C->set_major_progress();
@@ -1790,9 +1795,11 @@ void PhaseIdealLoop::insert_vector_post_loop(IdealLoopTree *loop, Node_List &old
   }
 
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("PostVector  ");
-    loop->dump_head();
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("PostVector  ");
+    loop->dump_head(&st);
   }
 #endif
   C->set_major_progress();
@@ -2075,22 +2082,27 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
   if (PrintOpto && VerifyLoopOptimizations) {
     tty->print("Unrolling ");
     loop->dump_head();
-  } else if (TraceLoopOpts) {
+  } else if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
     if (loop_head->trip_count() < (uint)LoopUnrollLimit) {
-      tty->print("Unroll %d(%2d) ", loop_head->unrolled_count()*2, loop_head->trip_count());
+      st.print("Unroll %d(%2d) ", loop_head->unrolled_count()*2, loop_head->trip_count());
     } else {
-      tty->print("Unroll %d     ", loop_head->unrolled_count()*2);
+      st.print("Unroll %d     ", loop_head->unrolled_count()*2);
     }
-    loop->dump_head();
+    loop->dump_head(&st);
   }
 
-  if (C->do_vector_loop() && (PrintOpto && (VerifyLoopOptimizations || TraceLoopOpts))) {
+  if (C->do_vector_loop() && (PrintOpto && (VerifyLoopOptimizations || ul_enabled(C, Trace, jit, loopopts)))) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
     Node_Stack stack(C->live_nodes() >> 2);
     Node_List rpo_list;
     VectorSet visited;
     visited.set(loop_head->_idx);
     rpo(loop_head, stack, visited, rpo_list);
     dump(loop, rpo_list.size(), rpo_list);
+    dump(loop, rpo_list.size(), rpo_list, &st);
   }
 #endif
 
@@ -2297,24 +2309,27 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
   loop_head->clear_strip_mined();
 
 #ifndef PRODUCT
-  if (C->do_vector_loop() && (PrintOpto && (VerifyLoopOptimizations || TraceLoopOpts))) {
-    tty->print("\nnew loop after unroll\n");       loop->dump_head();
+  if (C->do_vector_loop() && (PrintOpto && (VerifyLoopOptimizations || ul_enabled(C, Trace, jit, loopopts)))) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("\nnew loop after unroll\n");
+    loop->dump_head(&st);
     for (uint i = 0; i < loop->_body.size(); i++) {
-      loop->_body.at(i)->dump();
+      loop->_body.at(i)->dump(&st);
     }
     if (C->clone_map().is_debug()) {
-      tty->print("\nCloneMap\n");
+      st.print("\nCloneMap\n");
       Dict* dict = C->clone_map().dict();
       DictI i(dict);
-      tty->print_cr("Dict@%p[%d] = ", dict, dict->Size());
+      st.print_cr("Dict@%p[%d] = ", dict, dict->Size());
       for (int ii = 0; i.test(); ++i, ++ii) {
         NodeCloneInfo cl((uint64_t)dict->operator[]((void*)i._key));
-        tty->print("%d->%d:%d,", (int)(intptr_t)i._key, cl.idx(), cl.gen());
+        st.print("%d->%d:%d,", (int)(intptr_t)i._key, cl.idx(), cl.gen());
         if (ii % 10 == 9) {
-          tty->print_cr(" ");
+          st.print_cr(" ");
         }
       }
-      tty->print_cr(" ");
+      st.print_cr(" ");
     }
   }
 #endif
@@ -2329,9 +2344,11 @@ void PhaseIdealLoop::do_maximally_unroll(IdealLoopTree *loop, Node_List &old_new
   assert(cl->has_exact_trip_count(), "trip count is not exact");
   assert(cl->trip_count() > 0, "");
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("MaxUnroll  %d ", cl->trip_count());
-    loop->dump_head();
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("MaxUnroll  %d ", cl->trip_count());
+    loop->dump_head(&st);
   }
 #endif
 
@@ -2796,9 +2813,11 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
   if (PrintOpto && VerifyLoopOptimizations) {
     tty->print("Range Check Elimination ");
     loop->dump_head();
-  } else if (TraceLoopOpts) {
-    tty->print("RangeCheck   ");
-    loop->dump_head();
+  } else if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("RangeCheck   ");
+    loop->dump_head(&st);
   }
 #endif
 
@@ -3367,9 +3386,11 @@ bool IdealLoopTree::do_remove_empty_loop(PhaseIdealLoop *phase) {
   if (PrintOpto) {
     tty->print("Removing empty loop with%s zero trip guard", needs_guard ? "out" : "");
     this->dump_head();
-  } else if (TraceLoopOpts) {
-    tty->print("Empty with%s zero trip guard   ", needs_guard ? "out" : "");
-    this->dump_head();
+  } else if (ul_enabled(_phase->C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("Empty with%s zero trip guard   ", needs_guard ? "out" : "");
+    this->dump_head(&st);
   }
 #endif
 
@@ -3550,9 +3571,11 @@ bool IdealLoopTree::do_one_iteration_loop(PhaseIdealLoop *phase) {
   }
 
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("OneIteration ");
-    this->dump_head();
+  if (ul_enabled(_phase->C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("OneIteration ");
+    this->dump_head(&st);
   }
 #endif
 
@@ -4037,9 +4060,11 @@ bool PhaseIdealLoop::intrinsify_fill(IdealLoopTree* lpt) {
   }
 
 #ifndef PRODUCT
-  if (TraceLoopOpts) {
-    tty->print("ArrayFill    ");
-    lpt->dump_head();
+  if (ul_enabled(C, Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("ArrayFill    ");
+    lpt->dump_head(&st);
   }
 #endif
 

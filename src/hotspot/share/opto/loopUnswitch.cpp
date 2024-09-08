@@ -32,6 +32,7 @@
 #include "opto/opaquenode.hpp"
 #include "opto/predicates.hpp"
 #include "opto/rootnode.hpp"
+#include "logging/logStream.hpp"
 
 // Loop Unswitching is a loop optimization to move an invariant, non-loop-exiting test in the loop body before the loop.
 // Such a test is either always true or always false in all loop iterations and could therefore only be executed once.
@@ -354,9 +355,11 @@ void PhaseIdealLoop::trace_loop_unswitching_impossible(const LoopNode* original_
 }
 
 void PhaseIdealLoop::trace_loop_unswitching_count(IdealLoopTree* loop, LoopNode* original_head) {
-  if (TraceLoopOpts) {
-    tty->print("Unswitch   %d ", original_head->unswitch_count() + 1);
-    loop->dump_head();
+  if (ul_enabled(Compile::current(), Trace, jit, loopopts)) {
+    LogMessage(jit, loopopts) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print("Unswitch   %d ", original_head->unswitch_count() + 1);
+    loop->dump_head(&st);
   }
 }
 
