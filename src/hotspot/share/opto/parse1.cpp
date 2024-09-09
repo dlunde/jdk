@@ -2327,32 +2327,38 @@ void Parse::show_parse_info() {
       tty->cr();
     }
   }
-  if (PrintOpto && (depth() == 1 || PrintOptoInlining)) {
+  if (ul_enabled(C, Debug, jit, opto) && (depth() == 1 || PrintOptoInlining)) {
     // Print that we succeeded; suppress this message on the first osr parse.
-
-    if (method()->is_synchronized())         tty->print("s");
-    if (method()->has_exception_handlers())  tty->print("!");
+    LogMessage(jit, opto) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    if (C->is_osr_compilation()) {
+      st.print("[OSR]%3d", C->compile_id());
+    } else {
+      st.print("%3d", C->compile_id());
+    }
+    if (method()->is_synchronized())         st.print("s");
+    if (method()->has_exception_handlers())  st.print("!");
     // Check this is not the final compiled version
     if (C->trap_can_recompile() && depth() == 1) {
-      tty->print("-");
+      st.print("-");
     } else {
-      tty->print(" ");
+      st.print(" ");
     }
-    if( depth() != 1 ) { tty->print("   "); }  // missing compile count
-    for (int i = 1; i < depth(); ++i) { tty->print("  "); }
-    method()->print_short_name();
+    if( depth() != 1 ) { st.print("   "); }  // missing compile count
+    for (int i = 1; i < depth(); ++i) { st.print("  "); }
+    method()->print_short_name(&st);
     if (is_osr_parse()) {
-      tty->print(" @ %d", osr_bci());
+      st.print(" @ %d", osr_bci());
     }
     if (ilt->caller_bci() != -1) {
-      tty->print(" @ %d", ilt->caller_bci());
+      st.print(" @ %d", ilt->caller_bci());
     }
-    tty->print(" (%d bytes)",method()->code_size());
+    st.print(" (%d bytes)",method()->code_size());
     if (ilt->count_inlines()) {
-      tty->print(" __inlined %d (%d bytes)", ilt->count_inlines(),
+      st.print(" __inlined %d (%d bytes)", ilt->count_inlines(),
                  ilt->count_inline_bcs());
     }
-    tty->cr();
+    //st.cr();
   }
 }
 

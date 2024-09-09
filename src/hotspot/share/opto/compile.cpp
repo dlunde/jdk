@@ -559,16 +559,6 @@ void Compile::print_compile_messages() {
     tty->cr();
     BREAKPOINT;
   }
-
-  if (ul_enabled(C, Debug, jit, opto)) {
-    LogTarget(Debug, jit, opto) lt;
-    LogStream st(lt);
-    if (is_osr_compilation()) {
-      st.print("[OSR]%3d", _compile_id);
-    } else {
-      st.print("%3d", _compile_id);
-    }
-  }
 #endif
 }
 

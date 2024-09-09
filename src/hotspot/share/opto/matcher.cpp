@@ -44,6 +44,7 @@
 #include "runtime/os.inline.hpp"
 #include "runtime/sharedRuntime.hpp"
 #include "utilities/align.hpp"
+#include "logging/logStream.hpp"
 
 OptoReg::Name OptoReg::c_frame_pointer;
 
@@ -1109,10 +1110,17 @@ static void match_alias_type(Compile* C, Node* n, Node* m) {
     }
   }
   if (nidx != midx) {
-    if (PrintOpto || (PrintMiscellaneous && (WizardMode || Verbose))) {
+    if ((PrintMiscellaneous && (WizardMode || Verbose))) {
       tty->print_cr("==== Matcher alias shift %d => %d", nidx, midx);
       n->dump();
       m->dump();
+    }
+    if (ul_enabled(C, Debug, jit, opto)) {
+      LogMessage(opto) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print_cr("==== Matcher alias shift %d => %d", nidx, midx);
+      n->dump(&st);
+      m->dump(&st);
     }
     assert(C->subsume_loads() && C->must_alias(nat, midx),
            "must not lose alias info when matching");
