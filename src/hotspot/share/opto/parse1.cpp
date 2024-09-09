@@ -523,18 +523,19 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
     assert(false, "type flow analysis failed during parsing");
     C->record_method_not_compilable(_flow->failure_reason());
 #ifndef PRODUCT
-      if (ul_enabled(C, Trace, jit, opto)) {
-        if (is_osr_parse()) {
-          log_debug(jit, opto)("OSR @%d type flow bailout: %s", _entry_bci, _flow->failure_reason());
-        } else {
-          log_debug(jit, opto)("type flow bailout: %s", _flow->failure_reason());
-        }
-        LogMessage(jit, opto) msg;
-        NonInterleavingLogStream st(LogLevelType::Trace, msg);
-        method()->print(&st);
-        method()->print_codes_on(&st);
-        _flow->print_on(&st);
+    if (ul_enabled(C, Trace, jit, opto)) {
+      if (is_osr_parse()) {
+        log_debug(jit, opto)("OSR @%d type flow bailout: %s", _entry_bci,
+                             _flow->failure_reason());
+      } else {
+        log_debug(jit, opto)("type flow bailout: %s", _flow->failure_reason());
       }
+      LogMessage(jit, opto) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      method()->print(&st);
+      method()->print_codes_on(&st);
+      _flow->print_on(&st);
+    }
 #endif
   }
 
@@ -2344,8 +2345,12 @@ void Parse::show_parse_info() {
     } else {
       st.print(" ");
     }
-    if( depth() != 1 ) { st.print("   "); }  // missing compile count
-    for (int i = 1; i < depth(); ++i) { st.print("  "); }
+    if (depth() != 1) {
+      st.print("   ");
+    } // missing compile count
+    for (int i = 1; i < depth(); ++i) {
+      st.print("  ");
+    }
     method()->print_short_name(&st);
     if (is_osr_parse()) {
       st.print(" @ %d", osr_bci());
@@ -2353,12 +2358,12 @@ void Parse::show_parse_info() {
     if (ilt->caller_bci() != -1) {
       st.print(" @ %d", ilt->caller_bci());
     }
-    st.print(" (%d bytes)",method()->code_size());
+    st.print(" (%d bytes)", method()->code_size());
     if (ilt->count_inlines()) {
       st.print(" __inlined %d (%d bytes)", ilt->count_inlines(),
-                 ilt->count_inline_bcs());
+               ilt->count_inline_bcs());
     }
-    //st.cr();
+    // st.cr();
   }
 }
 

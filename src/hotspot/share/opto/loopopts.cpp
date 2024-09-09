@@ -840,7 +840,9 @@ Node *PhaseIdealLoop::conditional_move( Node *region ) {
     if (phi == nullptr || _igvn.type(phi) == Type::TOP) {
       break;
     }
-    if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) { log_debug(jit, opto)("CMOV"); }
+    if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+      log_debug(jit, opto)("CMOV");
+    }
     // Move speculative ops
     wq.push(phi);
     while (wq.size() > 0) {

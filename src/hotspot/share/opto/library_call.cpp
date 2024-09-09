@@ -769,7 +769,8 @@ bool LibraryCallKit::try_to_inline(int predicate) {
     }
     if (ul_enabled(C, Debug, jit, opto)) {
       log_debug(jit, opto)("*** Warning: Unimplemented intrinsic %s(%d)",
-                           vmIntrinsics::name_at(intrinsic_id()), vmIntrinsics::as_int(intrinsic_id()));
+                           vmIntrinsics::name_at(intrinsic_id()),
+                           vmIntrinsics::as_int(intrinsic_id()));
     }
 #endif
     return false;
@@ -810,8 +811,10 @@ Node* LibraryCallKit::try_to_predicate(int predicate) {
                     vmIntrinsics::name_at(intrinsic_id()), vmIntrinsics::as_int(intrinsic_id()));
     }
     if (ul_enabled(C, Debug, jit, opto)) {
-      log_debug(jit, opto)("*** Warning: Unimplemented predicate for intrinsic %s(%d)",
-                           vmIntrinsics::name_at(intrinsic_id()), vmIntrinsics::as_int(intrinsic_id()));
+      log_debug(jit, opto)(
+          "*** Warning: Unimplemented predicate for intrinsic %s(%d)",
+          vmIntrinsics::name_at(intrinsic_id()),
+          vmIntrinsics::as_int(intrinsic_id()));
     }
 #endif
     Node* slow_ctl = control();

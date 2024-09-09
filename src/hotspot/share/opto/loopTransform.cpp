@@ -2090,9 +2090,10 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
     LogMessage(jit, loopopts) msg;
     NonInterleavingLogStream st(LogLevelType::Trace, msg);
     if (loop_head->trip_count() < (uint)LoopUnrollLimit) {
-      st.print("Unroll %d(%2d) ", loop_head->unrolled_count()*2, loop_head->trip_count());
+      st.print("Unroll %d(%2d) ", loop_head->unrolled_count() * 2,
+               loop_head->trip_count());
     } else {
-      st.print("Unroll %d     ", loop_head->unrolled_count()*2);
+      st.print("Unroll %d     ", loop_head->unrolled_count() * 2);
     }
     loop->dump_head(&st);
   }
@@ -3426,7 +3427,8 @@ bool IdealLoopTree::do_remove_empty_loop(PhaseIdealLoop *phase) {
   if (ul_enabled(phase->C, Debug, jit, opto)) {
     LogMessage(jit, opto) msg;
     NonInterleavingLogStream st(LogLevelType::Debug, msg);
-    st.print("Removing empty loop with%s zero trip guard", needs_guard ? "out" : "");
+    st.print("Removing empty loop with%s zero trip guard",
+             needs_guard ? "out" : "");
     this->dump_head(&st);
   } else if (ul_enabled(_phase->C, Trace, jit, loopopts)) {
     LogMessage(jit, loopopts) msg;
@@ -3667,7 +3669,9 @@ bool IdealLoopTree::iteration_split_impl(PhaseIdealLoop *phase, Node_List &old_n
       }
     }
     if (policy_peeling(phase)) {    // Should we peel?
-      if (ul_enabled(phase->C, Debug, jit, opto)) { log_debug(jit, opto)("should_peel"); }
+      if (ul_enabled(phase->C, Debug, jit, opto)) {
+        log_debug(jit, opto)("should_peel");
+      }
       phase->do_peeling(this, old_new);
     } else if (policy_unswitching(phase)) {
       phase->do_unswitching(this, old_new);

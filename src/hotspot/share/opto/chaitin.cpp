@@ -46,21 +46,27 @@
 
 #ifndef PRODUCT
 void LRG::dump(outputStream* out) const {
-  ttyLocker ttyl; //We'll have to think about this (OPT)
-  out->print("%d ",num_regs());
+  ttyLocker ttyl; // We'll have to think about this (OPT)
+  out->print("%d ", num_regs());
   _mask.dump(out);
-  if( _msize_valid ) {
-    if( mask_size() == compute_mask_size() ) out->print(", #%d ",_mask_size);
-    else out->print(", #!!!_%d_vs_%d ",_mask_size,_mask.Size());
+  if (_msize_valid) {
+    if (mask_size() == compute_mask_size()) {
+      out->print(", #%d ", _mask_size);
+    } else {
+      out->print(", #!!!_%d_vs_%d ", _mask_size, _mask.Size());
+    }
   } else {
-    out->print(", #?(%d) ",_mask.Size());
+    out->print(", #?(%d) ", _mask.Size());
   }
 
   out->print("EffDeg: ");
-  if( _degree_valid ) out->print( "%d ", _eff_degree );
-  else out->print("? ");
+  if (_degree_valid) {
+    out->print("%d ", _eff_degree);
+  } else {
+    out->print("? ");
+  }
 
-  if( is_multidef() ) {
+  if (is_multidef()) {
     out->print("MultiDef ");
     if (_defs != nullptr) {
       out->print("(");
@@ -69,12 +75,13 @@ void LRG::dump(outputStream* out) const {
       }
       out->print(") ");
     }
+  } else if (_def == nullptr) {
+    out->print("Dead ");
+  } else {
+    out->print("Def: N%d ",_def->_idx);
   }
 
-  else if( _def == nullptr ) out->print("Dead ");
-  else out->print("Def: N%d ",_def->_idx);
-
-  out->print("Cost:%4.2g Area:%4.2g Score:%4.2g ",_cost,_area, score());
+  out->print("Cost:%4.2g Area:%4.2g Score:%4.2g ", _cost, _area, score());
   // Flags
   if (_is_oop)          out->print("Oop ");
   if (_is_float)        out->print("Float ");
@@ -91,7 +98,9 @@ void LRG::dump(outputStream* out) const {
   if( _must_spill )     out->print("Must_spill ");
   if( _is_bound )       out->print("Bound ");
   if( _msize_valid ) {
-    if( _degree_valid && lo_degree() ) out->print("Trivial ");
+    if (_degree_valid && lo_degree()) {
+      out->print("Trivial ");
+    }
   }
 
   out->cr();
@@ -2041,26 +2050,29 @@ void PhaseChaitin::add_reference(const Node *node, const Node *old_node) {
 #ifndef PRODUCT
 void PhaseChaitin::dump(const Node* n, outputStream* out) const {
   uint r = (n->_idx < _lrg_map.size()) ? _lrg_map.find_const(n) : 0;
-  out->print("L%d",r);
+  out->print("L%d", r);
   if (r && n->Opcode() != Op_Phi) {
-    if( _node_regs ) {          // Got a post-allocation copy of allocation?
+    if (_node_regs) {          // Got a post-allocation copy of allocation?
       out->print("[");
       OptoReg::Name second = get_reg_second(n);
-      if( OptoReg::is_valid(second) ) {
-        if( OptoReg::is_reg(second) )
-          out->print("%s:",Matcher::regName[second]);
+      if (OptoReg::is_valid(second)) {
+        if (OptoReg::is_reg(second))
+          out->print("%s:", Matcher::regName[second]);
         else
-          out->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(second));
+          out->print("%s+%d:", OptoReg::regname(OptoReg::c_frame_pointer),
+                     reg2offset_unchecked(second));
       }
       OptoReg::Name first = get_reg_first(n);
-      if( OptoReg::is_reg(first) )
-        out->print("%s]",Matcher::regName[first]);
+      if (OptoReg::is_reg(first))
+        out->print("%s]", Matcher::regName[first]);
       else
-        out->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(first));
-    } else
-    n->out_RegMask().dump(out);
+        out->print("%s+%d]", OptoReg::regname(OptoReg::c_frame_pointer),
+                   reg2offset_unchecked(first));
+    } else {
+      n->out_RegMask().dump(out);
+    }
   }
-  out->print("/N%d\t",n->_idx);
+  out->print("/N%d\t", n->_idx);
   out->print("%s === ", n->Name());
   uint k;
   for (k = 0; k < n->req(); k++) {
@@ -2070,48 +2082,54 @@ void PhaseChaitin::dump(const Node* n, outputStream* out) const {
     }
     else {
       uint r = (m->_idx < _lrg_map.size()) ? _lrg_map.find_const(m) : 0;
-      out->print("L%d",r);
+      out->print("L%d", r);
       // Data MultiNode's can have projections with no real registers.
       // Don't die while dumping them.
       int op = n->Opcode();
-      if( r && op != Op_Phi && op != Op_Proj && op != Op_SCMemProj) {
-        if( _node_regs ) {
+      if (r && op != Op_Phi && op != Op_Proj && op != Op_SCMemProj) {
+        if (_node_regs) {
           out->print("[");
           OptoReg::Name second = get_reg_second(n->in(k));
-          if( OptoReg::is_valid(second) ) {
-            if( OptoReg::is_reg(second) )
-              out->print("%s:",Matcher::regName[second]);
+          if (OptoReg::is_valid(second)) {
+            if (OptoReg::is_reg(second))
+              out->print("%s:", Matcher::regName[second]);
             else
-              out->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer),
+              out->print("%s+%d:", OptoReg::regname(OptoReg::c_frame_pointer),
                          reg2offset_unchecked(second));
           }
           OptoReg::Name first = get_reg_first(n->in(k));
-          if( OptoReg::is_reg(first) )
-            out->print("%s]",Matcher::regName[first]);
+          if (OptoReg::is_reg(first))
+            out->print("%s]", Matcher::regName[first]);
           else
-            out->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer),
+            out->print("%s+%d]", OptoReg::regname(OptoReg::c_frame_pointer),
                        reg2offset_unchecked(first));
-        } else
+        } else {
           n->in_RegMask(k).dump();
+        }
       }
-      out->print("/N%d ",m->_idx);
+      out->print("/N%d ", m->_idx);
     }
   }
-  if( k < n->len() && n->in(k) ) out->print("| ");
-  for( ; k < n->len(); k++ ) {
+  if (k < n->len() && n->in(k)) {
+    out->print("| ");
+  }
+  for ( ; k < n->len(); k++) {
     Node *m = n->in(k);
-    if(!m) {
+    if (!m) {
       break;
     }
     uint r = (m->_idx < _lrg_map.size()) ? _lrg_map.find_const(m) : 0;
-    out->print("L%d",r);
-    out->print("/N%d ",m->_idx);
+    out->print("L%d", r);
+    out->print("/N%d ", m->_idx);
   }
-  if( n->is_Mach() ) n->as_Mach()->dump_spec(out);
-  else n->dump_spec(out);
-  if( _spilled_once.test(n->_idx ) ) {
+  if (n->is_Mach()) {
+    n->as_Mach()->dump_spec(out);
+  } else {
+    n->dump_spec(out);
+  }
+  if (_spilled_once.test(n->_idx)) {
     out->print(" Spill_1");
-    if( _spilled_twice.test(n->_idx ) )
+    if (_spilled_twice.test(n->_idx))
       out->print(" Spill_2");
   }
   out->print("\n");
@@ -2139,8 +2157,8 @@ void PhaseChaitin::dump(const Block* b, outputStream* out) const {
 }
 
 void PhaseChaitin::dump(outputStream* out) const {
-  out->print( "--- Chaitin -- argsize: %d  framesize: %d ---\n",
-              _matcher._new_SP, _framesize );
+  out->print("--- Chaitin -- argsize: %d  framesize: %d ---\n",
+             _matcher._new_SP, _framesize);
 
   // For all blocks
   for (uint i = 0; i < _cfg.number_of_blocks(); i++) {
@@ -2157,7 +2175,7 @@ void PhaseChaitin::dump(outputStream* out) const {
   // Dump LRG array
   out->print("--- Live RanGe Array ---\n");
   for (uint i2 = 1; i2 < _lrg_map.max_lrg_id(); i2++) {
-    out->print("L%d: ",i2);
+    out->print("L%d: ", i2);
     if (i2 < _ifg->_maxlrg) {
       lrgs(i2).dump(out);
     }
@@ -2170,19 +2188,19 @@ void PhaseChaitin::dump(outputStream* out) const {
   // Dump lo-degree list
   out->print("Lo degree: ");
   for(uint i3 = _lo_degree; i3; i3 = lrgs(i3)._next )
-    out->print("L%d ",i3);
+    out->print("L%d ", i3);
   out->cr();
 
   // Dump lo-stk-degree list
   out->print("Lo stk degree: ");
   for(uint i4 = _lo_stk_degree; i4; i4 = lrgs(i4)._next )
-    out->print("L%d ",i4);
+    out->print("L%d ", i4);
   out->cr();
 
   // Dump lo-degree list
   out->print("Hi degree: ");
   for(uint i5 = _hi_degree; i5; i5 = lrgs(i5)._next )
-    out->print("L%d ",i5);
+    out->print("L%d ", i5);
   out->cr();
 }
 
@@ -2272,9 +2290,11 @@ void PhaseChaitin::dump_for_spill_split_recycle() const {
     // Display which live ranges need to be split and the allocator's state
     LogMessage(jit, opto) msg;
     NonInterleavingLogStream st(LogLevelType::Trace, msg);
-    st.print_cr("Graph-Coloring Iteration %d will split the following live ranges", _trip_cnt);
+    st.print_cr(
+        "Graph-Coloring Iteration %d will split the following live ranges",
+        _trip_cnt);
     for (uint bidx = 1; bidx < _lrg_map.max_lrg_id(); bidx++) {
-      if( lrgs(bidx).alive() && lrgs(bidx).reg() >= LRG::SPILL_REG ) {
+      if (lrgs(bidx).alive() && lrgs(bidx).reg() >= LRG::SPILL_REG) {
         st.print("L%d: ", bidx);
         lrgs(bidx).dump(&st);
       }

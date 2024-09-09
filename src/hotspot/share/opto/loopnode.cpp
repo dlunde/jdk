@@ -4224,8 +4224,8 @@ void IdealLoopTree::dump_head(outputStream* out) {
     if (cl->is_vectorized_loop()) out->print(" vector");
     if (range_checks_present())   out->print(" rc ");
   }
-  if (_has_call) out->print(" has_call");
-  if (_has_sfpt) out->print(" has_sfpt");
+  if (_has_call)      out->print(" has_call");
+  if (_has_sfpt)      out->print(" has_sfpt");
   if (_rce_candidate) out->print(" rce");
   if (_safepts != nullptr && _safepts->size() > 0) {
     out->print(" sfpts={");
