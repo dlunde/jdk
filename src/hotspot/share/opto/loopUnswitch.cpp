@@ -348,9 +348,9 @@ bool PhaseIdealLoop::has_control_dependencies_from_predicates(LoopNode* head) {
 
 #ifndef PRODUCT
 void PhaseIdealLoop::trace_loop_unswitching_impossible(const LoopNode* original_head) {
-  if (TraceLoopUnswitching) {
-    tty->print_cr("Loop Unswitching \"%d %s\" not possible due to control dependencies",
-                  original_head->_idx, original_head->Name());
+  if (ul_enabled(Compile::current(), Trace, jit, loopunswitching)) {
+    log_trace(jit, loopunswitching)("Loop Unswitching \"%d %s\" not possible due to control dependencies",
+                                    original_head->_idx, original_head->Name());
   }
 }
 
@@ -365,14 +365,16 @@ void PhaseIdealLoop::trace_loop_unswitching_count(IdealLoopTree* loop, LoopNode*
 
 void PhaseIdealLoop::trace_loop_unswitching_result(const UnswitchedLoopSelector& unswitched_loop_selector,
                                                    const LoopNode* original_head, const LoopNode* new_head) {
-  if (TraceLoopUnswitching) {
+  if (ul_enabled(Compile::current(), Trace, jit, loopunswitching)) {
+    LogMessage(jit, loopunswitching) logm;
+    NonInterleavingLogStream st(LogLevelType::Trace, logm);
     IfNode* unswitch_candidate = unswitched_loop_selector.unswitch_candidate();
     IfNode* loop_selector = unswitched_loop_selector.selector();
-    tty->print_cr("Loop Unswitching:");
-    tty->print_cr("- Unswitch-Candidate-If: %d %s", unswitch_candidate->_idx, unswitch_candidate->Name());
-    tty->print_cr("- Loop-Selector-If: %d %s", loop_selector->_idx, loop_selector->Name());
-    tty->print_cr("- True-Path-Loop (=Orig): %d %s", original_head->_idx, original_head->Name());
-    tty->print_cr("- False-Path-Loop (=Clone): %d %s", new_head->_idx, new_head->Name());
+    st.print_cr("Loop Unswitching:");
+    st.print_cr("- Unswitch-Candidate-If: %d %s", unswitch_candidate->_idx, unswitch_candidate->Name());
+    st.print_cr("- Loop-Selector-If: %d %s", loop_selector->_idx, loop_selector->Name());
+    st.print_cr("- True-Path-Loop (=Orig): %d %s", original_head->_idx, original_head->Name());
+    st.print_cr("- False-Path-Loop (=Clone): %d %s", new_head->_idx, new_head->Name());
   }
 }
 #endif

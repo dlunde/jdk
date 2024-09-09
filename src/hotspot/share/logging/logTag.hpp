@@ -116,6 +116,7 @@ class outputStream;
   LOG_TAG(loader) \
   LOG_TAG(logging) \
   LOG_TAG(loopopts) \
+  LOG_TAG(loopunswitching) \
   LOG_TAG(malloc) \
   LOG_TAG(map) \
   LOG_TAG(mark) \
