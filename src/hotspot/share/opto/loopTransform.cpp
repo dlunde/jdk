@@ -754,9 +754,11 @@ void PhaseIdealLoop::do_peeling(IdealLoopTree *loop, Node_List &old_new) {
     if (cl->is_main_loop()) {
       cl->set_normal_loop();
 #ifndef PRODUCT
-      if (PrintOpto && VerifyLoopOptimizations) {
-        tty->print("Peeling a 'main' loop; resetting to 'normal' ");
-        loop->dump_head();
+      if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+        LogMessage(jit, opto) msg;
+        NonInterleavingLogStream st(LogLevelType::Debug, msg);
+        st.print("Peeling a 'main' loop; resetting to 'normal' ");
+        loop->dump_head(&st);
       }
 #endif
     }
@@ -2079,9 +2081,11 @@ void PhaseIdealLoop::do_unroll(IdealLoopTree *loop, Node_List &old_new, bool adj
   C->print_method(PHASE_BEFORE_LOOP_UNROLLING, 4, loop_head);
 
 #ifndef PRODUCT
-  if (PrintOpto && VerifyLoopOptimizations) {
-    tty->print("Unrolling ");
-    loop->dump_head();
+  if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+    LogMessage(jit, opto) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("Unrolling ");
+    loop->dump_head(&st);
   } else if (ul_enabled(C, Trace, jit, loopopts)) {
     LogMessage(jit, loopopts) msg;
     NonInterleavingLogStream st(LogLevelType::Trace, msg);

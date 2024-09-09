@@ -222,7 +222,7 @@ public:
   bool is_singledef() const { return _def != NodeSentinel; }
 
 #ifndef PRODUCT
-  void dump( ) const;
+  void dump(outputStream* out = tty) const;
 #endif
 };
 
@@ -788,9 +788,9 @@ private:
 #ifndef PRODUCT
   static uint _high_pressure, _low_pressure;
 
-  void dump() const;
-  void dump(const Node* n) const;
-  void dump(const Block* b) const;
+  void dump(outputStream* out = tty) const;
+  void dump(const Node* n, outputStream* out = tty) const;
+  void dump(const Block* b, outputStream* out = tty) const;
   void dump_degree_lists() const;
   void dump_simplified() const;
   void dump_lrg(uint lidx, bool defs_only) const;

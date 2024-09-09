@@ -183,8 +183,11 @@ void Parse::do_get_xxx(Node* obj, ciField* field, bool is_field) {
     // not need to mention the class index, since the class will
     // already have been loaded if we ever see a non-null value.)
     // uncommon_trap(iter().get_field_signature_index());
-    if (PrintOpto && (Verbose || WizardMode)) {
-      method()->print_name(); tty->print_cr(" asserting nullness of field at bci: %d", bci());
+    if (ul_enabled(C, Trace, jit, opto)) {
+      stringStream ss;
+      method()->print_name(&ss);
+      ss.print_cr(" asserting nullness of field at bci: %d", bci());
+      log_trace(jit, opto)("%s", ss.freeze());
     }
     if (C->log() != nullptr) {
       C->log()->elem("assert_null reason='field' klass='%d'",

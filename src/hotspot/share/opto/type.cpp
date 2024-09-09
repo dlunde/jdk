@@ -42,6 +42,7 @@
 #include "utilities/checkedCast.hpp"
 #include "utilities/powerOfTwo.hpp"
 #include "utilities/stringUtils.hpp"
+#include "logging/logStream.hpp"
 
 // Portions of code courtesy of Clifford Click
 
@@ -4326,16 +4327,18 @@ const Type *TypeInstPtr::xmeet_helper(const Type *t) const {
       // One of these classes has not been loaded
       const TypeInstPtr* unloaded_meet = xmeet_unloaded(tinst, interfaces);
 #ifndef PRODUCT
-      if (PrintOpto && Verbose) {
-        tty->print("meet of unloaded classes resulted in: ");
-        unloaded_meet->dump();
-        tty->cr();
-        tty->print("  this == ");
-        dump();
-        tty->cr();
-        tty->print(" tinst == ");
-        tinst->dump();
-        tty->cr();
+      if (ul_enabled(Compile::current(), Trace, jit, opto)) {
+        LogMessage(jit, opto) msg;
+        NonInterleavingLogStream st(LogLevelType::Debug, msg);
+        st.print("meet of unloaded classes resulted in: ");
+        unloaded_meet->dump_on(&st);
+        st.cr();
+        st.print("  this == ");
+        dump_on(&st);
+        st.cr();
+        st.print(" tinst == ");
+        tinst->dump_on(&st);
+        st.cr();
       }
 #endif
       res = unloaded_meet;

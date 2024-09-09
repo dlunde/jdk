@@ -966,13 +966,13 @@ void PhaseIterGVN::verify_PhaseIterGVN() {
 #endif
 
   C->verify_graph_edges();
-  if (is_verify_def_use() && PrintOpto) {
+  if (is_verify_def_use() && ul_enabled(C, Debug, jit, opto)) {
     if (_verify_counter == _verify_full_passes) {
-      tty->print_cr("VerifyIterativeGVN: %d transforms and verify passes",
-                    (int) _verify_full_passes);
+      log_debug(jit, opto)("VerifyIterativeGVN: %d transforms and verify passes",
+                           (int) _verify_full_passes);
     } else {
-      tty->print_cr("VerifyIterativeGVN: %d transforms, %d full verify passes",
-                  (int) _verify_counter, (int) _verify_full_passes);
+      log_debug(jit, opto)("VerifyIterativeGVN: %d transforms, %d full verify passes",
+                           (int) _verify_counter, (int) _verify_full_passes);
     }
   }
 

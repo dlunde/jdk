@@ -37,6 +37,7 @@
 #include "opto/runtime.hpp"
 #include "opto/chaitin.hpp"
 #include "runtime/deoptimization.hpp"
+#include "logging/logStream.hpp"
 
 // Portions of code courtesy of Clifford Click
 
@@ -589,8 +590,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
 #ifdef ASSERT
   assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index");
   if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() &&
-      (PrintOpto || VerifyAliases ||
-       (PrintMiscellaneous && (WizardMode || Verbose)))) {
+      (VerifyAliases || (PrintMiscellaneous && (WizardMode || Verbose)))) {
     // Load nodes should not consume all of memory.
     // Reporting a bottom type indicates a bug in adlc.
     // If some particular type of node validly consumes all of memory,
@@ -598,6 +598,12 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory.");
     load->dump(2);
     if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, "");
+  }
+  if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() && ul_enabled(C, Debug, jit, opto)) {
+    LogMessage(jit, opto) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory.");
+    load->dump(2, &st);
   }
 #endif
 

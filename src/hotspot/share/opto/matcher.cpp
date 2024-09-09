@@ -1707,9 +1707,9 @@ Node* Matcher::Label_Root(const Node* n, State* svec, Node* control, Node*& mem)
         // is used by any of the other subtrees
         (input_mem == NodeSentinel) ) {
       // Print when we exclude matching due to different memory states at input-loads
-      if (PrintOpto && (Verbose && WizardMode) && (input_mem == NodeSentinel)
+      if (ul_enabled(C, Trace, jit, opto) && (input_mem == NodeSentinel)
           && !((mem!=(Node*)1) && m->is_Load() && m->in(MemNode::Memory) != mem)) {
-        tty->print_cr("invalid input_mem");
+        log_trace(jit, opto)("invalid input_mem");
       }
       // Switch to a register-only opcode; this value must be in a register
       // and cannot be subsumed as part of a larger instruction.

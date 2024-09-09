@@ -31,6 +31,7 @@
 #include "opto/node.hpp"
 #include "opto/opaquenode.hpp"
 #include "opto/predicates.hpp"
+#include "logging/logStream.hpp"
 
 //------------------------------split_thru_region------------------------------
 // Split Node 'n' through merge point.
@@ -138,9 +139,11 @@ bool PhaseIdealLoop::split_up( Node *n, Node *blk1, Node *blk2 ) {
 
   // Found some other Node; must clone it up
 #ifndef PRODUCT
-  if( PrintOpto && VerifyLoopOptimizations ) {
-    tty->print("Cloning up: ");
-    n->dump();
+  if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+    LogMessage(jit, opto) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("Cloning up: ");
+    n->dump(&st);
   }
 #endif
 
@@ -310,9 +313,11 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
 
       // Must clone down
 #ifndef PRODUCT
-      if( PrintOpto && VerifyLoopOptimizations ) {
-        tty->print("Cloning down: ");
-        n->dump();
+      if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+        LogMessage(jit, opto) msg;
+        NonInterleavingLogStream st(LogLevelType::Debug, msg);
+        st.print("Cloning down: ");
+        n->dump(&st);
       }
 #endif
       if (!n->is_FastLock()) {
@@ -344,9 +349,11 @@ bool PhaseIdealLoop::clone_cmp_down(Node* n, const Node* blk1, const Node* blk2)
           if (at_relevant_ctrl(bol, blk1, blk2)) {
             // Recursively sink any BoolNode
 #ifndef PRODUCT
-            if( PrintOpto && VerifyLoopOptimizations ) {
-              tty->print("Cloning down: ");
-              bol->dump();
+            if (ul_enabled(C, Debug, jit, opto) && VerifyLoopOptimizations) {
+              LogMessage(jit, opto) msg;
+              NonInterleavingLogStream st(LogLevelType::Debug, msg);
+              st.print("Cloning down: ");
+              bol->dump(&st);
             }
 #endif
             for (DUIterator j = bol->outs(); bol->has_out(j); j++) {

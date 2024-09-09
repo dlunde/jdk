@@ -42,58 +42,59 @@
 #include "opto/opcodes.hpp"
 #include "opto/rootnode.hpp"
 #include "utilities/align.hpp"
+#include "logging/logStream.hpp"
 
 #ifndef PRODUCT
-void LRG::dump() const {
-  ttyLocker ttyl;
-  tty->print("%d ",num_regs());
-  _mask.dump();
+void LRG::dump(outputStream* out) const {
+  ttyLocker ttyl; //We'll have to think about this (OPT)
+  out->print("%d ",num_regs());
+  _mask.dump(out);
   if( _msize_valid ) {
-    if( mask_size() == compute_mask_size() ) tty->print(", #%d ",_mask_size);
-    else tty->print(", #!!!_%d_vs_%d ",_mask_size,_mask.Size());
+    if( mask_size() == compute_mask_size() ) out->print(", #%d ",_mask_size);
+    else out->print(", #!!!_%d_vs_%d ",_mask_size,_mask.Size());
   } else {
-    tty->print(", #?(%d) ",_mask.Size());
+    out->print(", #?(%d) ",_mask.Size());
   }
 
-  tty->print("EffDeg: ");
-  if( _degree_valid ) tty->print( "%d ", _eff_degree );
-  else tty->print("? ");
+  out->print("EffDeg: ");
+  if( _degree_valid ) out->print( "%d ", _eff_degree );
+  else out->print("? ");
 
   if( is_multidef() ) {
-    tty->print("MultiDef ");
+    out->print("MultiDef ");
     if (_defs != nullptr) {
-      tty->print("(");
+      out->print("(");
       for (int i = 0; i < _defs->length(); i++) {
-        tty->print("N%d ", _defs->at(i)->_idx);
+        out->print("N%d ", _defs->at(i)->_idx);
       }
-      tty->print(") ");
+      out->print(") ");
     }
   }
-  else if( _def == nullptr ) tty->print("Dead ");
-  else tty->print("Def: N%d ",_def->_idx);
 
-  tty->print("Cost:%4.2g Area:%4.2g Score:%4.2g ",_cost,_area, score());
+  else if( _def == nullptr ) out->print("Dead ");
+  else out->print("Def: N%d ",_def->_idx);
+
+  out->print("Cost:%4.2g Area:%4.2g Score:%4.2g ",_cost,_area, score());
   // Flags
-  if( _is_oop ) tty->print("Oop ");
-  if( _is_float ) tty->print("Float ");
-  if( _is_vector ) tty->print("Vector ");
-  if( _is_predicate ) tty->print("Predicate ");
-  if( _is_scalable ) tty->print("Scalable ");
-  if( _was_spilled1 ) tty->print("Spilled ");
-  if( _was_spilled2 ) tty->print("Spilled2 ");
-  if( _direct_conflict ) tty->print("Direct_conflict ");
-  if( _fat_proj ) tty->print("Fat ");
-  if( _was_lo ) tty->print("Lo ");
-  if( _has_copy ) tty->print("Copy ");
-  if( _at_risk ) tty->print("Risk ");
-
-  if( _must_spill ) tty->print("Must_spill ");
-  if( _is_bound ) tty->print("Bound ");
+  if (_is_oop)          out->print("Oop ");
+  if (_is_float)        out->print("Float ");
+  if (_is_vector)       out->print("Vector ");
+  if (_is_predicate)    out->print("Predicate ");
+  if (_is_scalable)     out->print("Scalable ");
+  if (_was_spilled1)    out->print("Spilled ");
+  if (_was_spilled2)    out->print("Spilled2 ");
+  if (_direct_conflict) out->print("Direct_conflict ");
+  if (_fat_proj)        out->print("Fat ");
+  if (_was_lo)          out->print("Lo ");
+  if (_has_copy)        out->print("Copy ");
+  if (_at_risk)         out->print("Risk ");
+  if( _must_spill )     out->print("Must_spill ");
+  if( _is_bound )       out->print("Bound ");
   if( _msize_valid ) {
-    if( _degree_valid && lo_degree() ) tty->print("Trivial ");
+    if( _degree_valid && lo_degree() ) out->print("Trivial ");
   }
 
-  tty->cr();
+  out->cr();
 }
 #endif
 
@@ -2038,151 +2039,151 @@ void PhaseChaitin::add_reference(const Node *node, const Node *old_node) {
 }
 
 #ifndef PRODUCT
-void PhaseChaitin::dump(const Node* n) const {
+void PhaseChaitin::dump(const Node* n, outputStream* out) const {
   uint r = (n->_idx < _lrg_map.size()) ? _lrg_map.find_const(n) : 0;
-  tty->print("L%d",r);
+  out->print("L%d",r);
   if (r && n->Opcode() != Op_Phi) {
     if( _node_regs ) {          // Got a post-allocation copy of allocation?
-      tty->print("[");
+      out->print("[");
       OptoReg::Name second = get_reg_second(n);
       if( OptoReg::is_valid(second) ) {
         if( OptoReg::is_reg(second) )
-          tty->print("%s:",Matcher::regName[second]);
+          out->print("%s:",Matcher::regName[second]);
         else
-          tty->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(second));
+          out->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(second));
       }
       OptoReg::Name first = get_reg_first(n);
       if( OptoReg::is_reg(first) )
-        tty->print("%s]",Matcher::regName[first]);
+        out->print("%s]",Matcher::regName[first]);
       else
-         tty->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(first));
+        out->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer), reg2offset_unchecked(first));
     } else
-    n->out_RegMask().dump();
+    n->out_RegMask().dump(out);
   }
-  tty->print("/N%d\t",n->_idx);
-  tty->print("%s === ", n->Name());
+  out->print("/N%d\t",n->_idx);
+  out->print("%s === ", n->Name());
   uint k;
   for (k = 0; k < n->req(); k++) {
     Node *m = n->in(k);
     if (!m) {
-      tty->print("_ ");
+      out->print("_ ");
     }
     else {
       uint r = (m->_idx < _lrg_map.size()) ? _lrg_map.find_const(m) : 0;
-      tty->print("L%d",r);
+      out->print("L%d",r);
       // Data MultiNode's can have projections with no real registers.
       // Don't die while dumping them.
       int op = n->Opcode();
       if( r && op != Op_Phi && op != Op_Proj && op != Op_SCMemProj) {
         if( _node_regs ) {
-          tty->print("[");
+          out->print("[");
           OptoReg::Name second = get_reg_second(n->in(k));
           if( OptoReg::is_valid(second) ) {
             if( OptoReg::is_reg(second) )
-              tty->print("%s:",Matcher::regName[second]);
+              out->print("%s:",Matcher::regName[second]);
             else
-              tty->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer),
+              out->print("%s+%d:",OptoReg::regname(OptoReg::c_frame_pointer),
                          reg2offset_unchecked(second));
           }
           OptoReg::Name first = get_reg_first(n->in(k));
           if( OptoReg::is_reg(first) )
-            tty->print("%s]",Matcher::regName[first]);
+            out->print("%s]",Matcher::regName[first]);
           else
-            tty->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer),
+            out->print("%s+%d]",OptoReg::regname(OptoReg::c_frame_pointer),
                        reg2offset_unchecked(first));
         } else
           n->in_RegMask(k).dump();
       }
-      tty->print("/N%d ",m->_idx);
+      out->print("/N%d ",m->_idx);
     }
   }
-  if( k < n->len() && n->in(k) ) tty->print("| ");
+  if( k < n->len() && n->in(k) ) out->print("| ");
   for( ; k < n->len(); k++ ) {
     Node *m = n->in(k);
     if(!m) {
       break;
     }
     uint r = (m->_idx < _lrg_map.size()) ? _lrg_map.find_const(m) : 0;
-    tty->print("L%d",r);
-    tty->print("/N%d ",m->_idx);
+    out->print("L%d",r);
+    out->print("/N%d ",m->_idx);
   }
-  if( n->is_Mach() ) n->as_Mach()->dump_spec(tty);
-  else n->dump_spec(tty);
+  if( n->is_Mach() ) n->as_Mach()->dump_spec(out);
+  else n->dump_spec(out);
   if( _spilled_once.test(n->_idx ) ) {
-    tty->print(" Spill_1");
+    out->print(" Spill_1");
     if( _spilled_twice.test(n->_idx ) )
-      tty->print(" Spill_2");
+      out->print(" Spill_2");
   }
-  tty->print("\n");
+  out->print("\n");
 }
 
-void PhaseChaitin::dump(const Block* b) const {
-  b->dump_head(&_cfg);
+void PhaseChaitin::dump(const Block* b, outputStream* out) const {
+  b->dump_head(&_cfg, out);
 
   // For all instructions
   for( uint j = 0; j < b->number_of_nodes(); j++ )
-    dump(b->get_node(j));
+    dump(b->get_node(j), out);
   // Print live-out info at end of block
   if( _live ) {
-    tty->print("Liveout: ");
+    out->print("Liveout: ");
     IndexSet *live = _live->live(b);
     IndexSetIterator elements(live);
-    tty->print("{");
+    out->print("{");
     uint i;
     while ((i = elements.next()) != 0) {
-      tty->print("L%d ", _lrg_map.find_const(i));
+      out->print("L%d ", _lrg_map.find_const(i));
     }
-    tty->print_cr("}");
+    out->print_cr("}");
   }
-  tty->print("\n");
+  out->print("\n");
 }
 
-void PhaseChaitin::dump() const {
-  tty->print( "--- Chaitin -- argsize: %d  framesize: %d ---\n",
+void PhaseChaitin::dump(outputStream* out) const {
+  out->print( "--- Chaitin -- argsize: %d  framesize: %d ---\n",
               _matcher._new_SP, _framesize );
 
   // For all blocks
   for (uint i = 0; i < _cfg.number_of_blocks(); i++) {
-    dump(_cfg.get_block(i));
+    dump(_cfg.get_block(i), out);
   }
   // End of per-block dump
-  tty->print("\n");
+  out->print("\n");
 
   if (!_ifg) {
-    tty->print("(No IFG.)\n");
+    out->print("(No IFG.)\n");
     return;
   }
 
   // Dump LRG array
-  tty->print("--- Live RanGe Array ---\n");
+  out->print("--- Live RanGe Array ---\n");
   for (uint i2 = 1; i2 < _lrg_map.max_lrg_id(); i2++) {
-    tty->print("L%d: ",i2);
+    out->print("L%d: ",i2);
     if (i2 < _ifg->_maxlrg) {
-      lrgs(i2).dump();
+      lrgs(i2).dump(out);
     }
     else {
-      tty->print_cr("new LRG");
+      out->print_cr("new LRG");
     }
   }
-  tty->cr();
+  out->cr();
 
   // Dump lo-degree list
-  tty->print("Lo degree: ");
+  out->print("Lo degree: ");
   for(uint i3 = _lo_degree; i3; i3 = lrgs(i3)._next )
-    tty->print("L%d ",i3);
-  tty->cr();
+    out->print("L%d ",i3);
+  out->cr();
 
   // Dump lo-stk-degree list
-  tty->print("Lo stk degree: ");
+  out->print("Lo stk degree: ");
   for(uint i4 = _lo_stk_degree; i4; i4 = lrgs(i4)._next )
-    tty->print("L%d ",i4);
-  tty->cr();
+    out->print("L%d ",i4);
+  out->cr();
 
   // Dump lo-degree list
-  tty->print("Hi degree: ");
+  out->print("Hi degree: ");
   for(uint i5 = _hi_degree; i5; i5 = lrgs(i5)._next )
-    tty->print("L%d ",i5);
-  tty->cr();
+    out->print("L%d ",i5);
+  out->cr();
 }
 
 void PhaseChaitin::dump_degree_lists() const {
@@ -2255,7 +2256,7 @@ char *PhaseChaitin::dump_register(const Node* n, char* buf, size_t buf_size) con
 }
 
 void PhaseChaitin::dump_for_spill_split_recycle() const {
-  if( WizardMode && (PrintCompilation || PrintOpto) ) {
+  if( WizardMode && (PrintCompilation) ) {
     // Display which live ranges need to be split and the allocator's state
     tty->print_cr("Graph-Coloring Iteration %d will split the following live ranges", _trip_cnt);
     for (uint bidx = 1; bidx < _lrg_map.max_lrg_id(); bidx++) {
@@ -2266,6 +2267,20 @@ void PhaseChaitin::dump_for_spill_split_recycle() const {
     }
     tty->cr();
     dump();
+  }
+  if (ul_enabled(C, Trace, jit, opto)) {
+    // Display which live ranges need to be split and the allocator's state
+    LogMessage(jit, opto) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print_cr("Graph-Coloring Iteration %d will split the following live ranges", _trip_cnt);
+    for (uint bidx = 1; bidx < _lrg_map.max_lrg_id(); bidx++) {
+      if( lrgs(bidx).alive() && lrgs(bidx).reg() >= LRG::SPILL_REG ) {
+        st.print("L%d: ", bidx);
+        lrgs(bidx).dump(&st);
+      }
+    }
+    st.cr();
+    dump(&st);
   }
 }
 

@@ -33,6 +33,7 @@
 #include "opto/chaitin.hpp"
 #include "opto/loopnode.hpp"
 #include "opto/machnode.hpp"
+#include "logging/logStream.hpp"
 
 //------------------------------Split--------------------------------------
 // Walk the graph in RPO and for each lrg which spills, propagate reaching
@@ -292,11 +293,14 @@ int PhaseChaitin::split_USE(MachSpillCopyNode::SpillType spill_type, Node *def, 
 static Node* clone_node(Node* def, Block *b, Compile* C) {
   if (def->needs_anti_dependence_check()) {
 #ifdef ASSERT
-    if (PrintOpto && WizardMode) {
-      tty->print_cr("RA attempts to clone node with anti_dependence:");
-      def->dump(-1); tty->cr();
-      tty->print_cr("into block:");
-      b->dump();
+    if (ul_enabled(C, Trace, jit, opto)) {
+      LogMessage(jit, opto) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print_cr("RA attempts to clone node with anti_dependence:");
+      def->dump(-1, &st);
+      st.cr();
+      st.print_cr("into block:");
+      b->dump(&st);
     }
 #endif
     if (C->subsume_loads() == true && !C->failing()) {
@@ -529,8 +533,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       // Initialize the split counts to zero
       splits.append(0);
 #endif
-      if (PrintOpto && WizardMode && lrgs(bidx)._was_spilled1) {
-        tty->print_cr("Warning, 2nd spill of L%d",bidx);
+      if (ul_enabled(C, Trace, jit, opto) && lrgs(bidx)._was_spilled1) {
+        log_trace(jit, opto)("Warning, 2nd spill of L%d", bidx);
       }
     }
   }
@@ -1442,8 +1446,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   // Issue a warning if splitting made no progress
   int noprogress = 0;
   for (slidx = 0; slidx < spill_cnt; slidx++) {
-    if (PrintOpto && WizardMode && splits.at(slidx) == 0) {
-      tty->print_cr("Failed to split live range %d", lidxs.at(slidx));
+    if (ul_enabled(C, Trace, jit, opto) && splits.at(slidx) == 0) {
+      log_trace(jit, opto)("Failed to split live range %d", lidxs.at(slidx));
       //BREAKPOINT;
     }
     else {

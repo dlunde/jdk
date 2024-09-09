@@ -1357,10 +1357,12 @@ bool Parse::seems_never_taken(float prob) const {
 //-------------------------------repush_if_args--------------------------------
 // Push arguments of an "if" bytecode back onto the stack by adjusting _sp.
 inline int Parse::repush_if_args() {
-  if (PrintOpto && WizardMode) {
-    tty->print("defending against excessive implicit null exceptions on %s @%d in ",
-               Bytecodes::name(iter().cur_bc()), iter().cur_bci());
-    method()->print_name(); tty->cr();
+  if (ul_enabled(C, Trace, jit, opto)) {
+    stringStream ss;
+    ss.print("defending against excessive implicit null exceptions on %s @%d in ",
+             Bytecodes::name(iter().cur_bc()), iter().cur_bci());
+    method()->print_name(&ss);
+    log_trace(jit, opto)("%s\n", ss.freeze());
   }
   int bc_depth = - Bytecodes::depth(iter().cur_bc());
   assert(bc_depth == 1 || bc_depth == 2, "only two kinds of branches");
@@ -1382,8 +1384,8 @@ void Parse::do_ifnull(BoolTest::mask btest, Node *c) {
   float prob = branch_prediction(cnt, btest, target_bci, c);
   if (prob == PROB_UNKNOWN) {
     // (An earlier version of do_ifnull omitted this trap for OSR methods.)
-    if (PrintOpto && Verbose) {
-      tty->print_cr("Never-taken edge stops compilation at bci %d", bci());
+    if (ul_enabled(C, Trace, jit, opto)) {
+      log_trace(jit, opto)("Never-taken edge stops compilation at bci %d", bci());
     }
     repush_if_args(); // to gather stats on loop
     uncommon_trap(Deoptimization::Reason_unreached,
@@ -1453,8 +1455,8 @@ void Parse::do_if(BoolTest::mask btest, Node* c) {
   float untaken_prob = 1.0 - prob;
 
   if (prob == PROB_UNKNOWN) {
-    if (PrintOpto && Verbose) {
-      tty->print_cr("Never-taken edge stops compilation at bci %d", bci());
+    if (ul_enabled(C, Trace, jit, opto)) {
+      log_trace(jit, opto)("Never-taken edge stops compilation at bci %d", bci());
     }
     repush_if_args(); // to gather stats on loop
     uncommon_trap(Deoptimization::Reason_unreached,

@@ -43,6 +43,7 @@
 #include "runtime/sharedRuntime.hpp"
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/copy.hpp"
+#include "logging/logStream.hpp"
 
 // Static array so we can figure out which bytecodes stop us from compiling
 // the most. Some of the non-static variables are needed in bytecodeInfo.cpp
@@ -421,7 +422,7 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
   DEBUG_ONLY(_block_count = -1);
   DEBUG_ONLY(_blocks = (Block*)-1);
 #ifndef PRODUCT
-  if (PrintCompilation || PrintOpto) {
+  if (PrintCompilation || ul_enabled(C, Debug, jit, opto)) {
     // Make sure I have an inline tree, so I can print messages about it.
     InlineTree::find_subtree_from_root(C->ilt(), caller, parse_method);
   }
@@ -522,17 +523,17 @@ Parse::Parse(JVMState* caller, ciMethod* parse_method, float expected_uses)
     assert(false, "type flow analysis failed during parsing");
     C->record_method_not_compilable(_flow->failure_reason());
 #ifndef PRODUCT
-      if (PrintOpto && (Verbose || WizardMode)) {
+      if (ul_enabled(C, Trace, jit, opto)) {
         if (is_osr_parse()) {
-          tty->print_cr("OSR @%d type flow bailout: %s", _entry_bci, _flow->failure_reason());
+          log_debug(jit, opto)("OSR @%d type flow bailout: %s", _entry_bci, _flow->failure_reason());
         } else {
-          tty->print_cr("type flow bailout: %s", _flow->failure_reason());
+          log_debug(jit, opto)("type flow bailout: %s", _flow->failure_reason());
         }
-        if (Verbose) {
-          method()->print();
-          method()->print_codes();
-          _flow->print();
-        }
+        LogMessage(jit, opto) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        method()->print(&st);
+        method()->print_codes_on(&st);
+        _flow->print_on(&st);
       }
 #endif
   }
@@ -1028,9 +1029,11 @@ void Parse::do_exits() {
       AllocateNode* alloc = AllocateNode::Ideal_allocation(recorded_alloc);
       alloc->compute_MemBar_redundancy(method());
     }
-    if (PrintOpto && (Verbose || WizardMode)) {
-      method()->print_name();
-      tty->print_cr(" writes finals/@Stable and needs a memory barrier");
+    if (ul_enabled(C, Trace, jit, opto)) {
+      stringStream ss;
+      method()->print_name(&ss);
+      ss.print_cr(" writes finals and needs a memory barrier");
+      log_trace(jit, opto)("%s", ss.freeze());
     }
   }
 
@@ -2368,10 +2371,10 @@ void Parse::dump() {
 }
 
 // Dump information associated with a byte code index, 'bci'
-void Parse::dump_bci(int bci) {
+void Parse::dump_bci(int bci, outputStream* out) {
   // Output info on merge-points, cloning, and within _jsr..._ret
   // NYI
-  tty->print(" bci:%d", bci);
+  out->print(" bci:%d", bci);
 }
 
 #endif
