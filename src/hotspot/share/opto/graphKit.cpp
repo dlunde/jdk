@@ -2114,11 +2114,11 @@ Node* GraphKit::uncommon_trap(int trap_request,
     break;
   }
 
-  if (TraceOptoParse) {
+  if (ul_enabled(C, Debug, jit, optoparse)) {
     char buf[100];
-    tty->print_cr("Uncommon trap %s at bci:%d",
-                  Deoptimization::format_trap_request(buf, sizeof(buf),
-                                                      trap_request), bci());
+    log_debug(jit, optoparse)("Uncommon trap %s at bci:%d",
+                              Deoptimization::format_trap_request(buf, sizeof(buf),
+                                                                  trap_request), bci());
   }
 
   CompileLog* log = C->log();

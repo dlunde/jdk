@@ -354,15 +354,15 @@ public:
     return adjoinRange(other._lo, other._hi, other._dest, other._cnt, false);
   }
 
-  void print() {
+  void print(outputStream *out = tty) {
     if (is_singleton())
-      tty->print(" {%d}=>%d (cnt=%f)", lo(), dest(), cnt());
+      out->print(" {%d}=>%d (cnt=%f)", lo(), dest(), cnt());
     else if (lo() == min_jint)
-      tty->print(" {..%d}=>%d (cnt=%f)", hi(), dest(), cnt());
+      out->print(" {..%d}=>%d (cnt=%f)", hi(), dest(), cnt());
     else if (hi() == max_jint)
-      tty->print(" {%d..}=>%d (cnt=%f)", lo(), dest(), cnt());
+      out->print(" {%d..}=>%d (cnt=%f)", lo(), dest(), cnt());
     else
-      tty->print(" {%d..%d}=>%d (cnt=%f)", lo(), hi(), dest(), cnt());
+      out->print(" {%d..%d}=>%d (cnt=%f)", lo(), hi(), dest(), cnt());
   }
 };
 
@@ -1073,25 +1073,28 @@ void Parse::jump_switch_ranges(Node* key_val, SwitchRange *lo, SwitchRange *hi, 
 
 #ifndef PRODUCT
   _max_switch_depth = MAX2(switch_depth, _max_switch_depth);
-  if (TraceOptoParse && Verbose && WizardMode && switch_depth == 0) {
+  if (ul_enabled(C, Trace, jit, optoparse) && switch_depth == 0) {
+    LogMessage(optoparse) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+
     SwitchRange* r;
     int nsing = 0;
     for( r = lo; r <= hi; r++ ) {
       if( r->is_singleton() )  nsing++;
     }
-    tty->print(">>> ");
-    _method->print_short_name();
-    tty->print_cr(" switch decision tree");
-    tty->print_cr("    %d ranges (%d singletons), max_depth=%d, est_depth=%d",
+    st.print(">>> ");
+    _method->print_short_name(&st);
+    st.print_cr(" switch decision tree");
+    st.print_cr("    %d ranges (%d singletons), max_depth=%d, est_depth=%d",
                   (int) (hi-lo+1), nsing, _max_switch_depth, _est_switch_depth);
     if (_max_switch_depth > _est_switch_depth) {
-      tty->print_cr("******** BAD SWITCH DEPTH ********");
+      st.print_cr("******** BAD SWITCH DEPTH ********");
     }
-    tty->print("   ");
+    st.print("   ");
     for( r = lo; r <= hi; r++ ) {
-      r->print();
+      r->print(&st);
     }
-    tty->cr();
+    st.cr();
   }
 #endif
 }
@@ -1829,11 +1832,12 @@ void Parse::do_one_bytecode() {
 
 #ifdef ASSERT
   // for setting breakpoints
-  if (TraceOptoParse) {
-    tty->print(" @");
-    dump_bci(bci());
-    tty->print(" %s", Bytecodes::name(bc()));
-    tty->cr();
+  if (ul_enabled(C, Debug, jit, optoparse)) {
+    LogMessage(jit, optoparse) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print(" @");
+    dump_bci(bci(), &st);
+    st.print_cr(" %s", Bytecodes::name(bc()));
   }
 #endif
 
