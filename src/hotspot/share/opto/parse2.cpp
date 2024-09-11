@@ -354,7 +354,7 @@ public:
     return adjoinRange(other._lo, other._hi, other._dest, other._cnt, false);
   }
 
-  void print(outputStream *out = tty) {
+  void print(outputStream* out = tty) {
     if (is_singleton())
       out->print(" {%d}=>%d (cnt=%f)", lo(), dest(), cnt());
     else if (lo() == min_jint)
@@ -1086,7 +1086,8 @@ void Parse::jump_switch_ranges(Node* key_val, SwitchRange *lo, SwitchRange *hi, 
     _method->print_short_name(&st);
     st.print_cr(" switch decision tree");
     st.print_cr("    %d ranges (%d singletons), max_depth=%d, est_depth=%d",
-                  (int) (hi-lo+1), nsing, _max_switch_depth, _est_switch_depth);
+                (int)(hi - lo + 1), nsing, _max_switch_depth,
+                _est_switch_depth);
     if (_max_switch_depth > _est_switch_depth) {
       st.print_cr("******** BAD SWITCH DEPTH ********");
     }

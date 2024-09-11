@@ -3917,7 +3917,9 @@ bool PhaseIdealLoop::match_fill_loop(IdealLoopTree* lpt, Node*& store, Node*& st
       LogMessage(jit, optimizefill) logm;
       NonInterleavingLogStream st(LogLevelType::Trace, logm);
       st.print_cr("not fill intrinsic candidate: %s", msg);
-      if (msg_node != nullptr) msg_node->dump(&st);
+      if (msg_node != nullptr) {
+        msg_node->dump(&st);
+      }
     }
 #endif
     return false;
@@ -4002,7 +4004,9 @@ bool PhaseIdealLoop::match_fill_loop(IdealLoopTree* lpt, Node*& store, Node*& st
       LogMessage(jit, optimizefill) logm;
       NonInterleavingLogStream st(LogLevelType::Trace, logm);
       st.print_cr("not fill intrinsic: %s", msg);
-      if (msg_node != nullptr) msg_node->dump(&st);
+      if (msg_node != nullptr) {
+        msg_node->dump(&st);
+      }
     }
 #endif
     return false;
@@ -4066,7 +4070,9 @@ bool PhaseIdealLoop::match_fill_loop(IdealLoopTree* lpt, Node*& store, Node*& st
     NonInterleavingLogStream st(LogLevelType::Trace, logm);
     if (msg != nullptr) {
       st.print_cr("no fill intrinsic: %s", msg);
-      if (msg_node != nullptr) msg_node->dump(&st);
+      if (msg_node != nullptr) {
+        msg_node->dump(&st);
+      }
     } else {
       st.print_cr("fill intrinsic for:");
     }
