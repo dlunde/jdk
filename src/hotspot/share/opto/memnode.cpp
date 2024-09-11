@@ -2996,7 +2996,7 @@ private:
   Node* make_merged_input_value(const Node_List& merge_list);
   StoreNode* make_merged_store(const Node_List& merge_list, Node* merged_input_value);
 
-  DEBUG_ONLY( void trace(const Node_List& merge_list, const Node* merged_input_value, const StoreNode* merged_store) const; )
+  DEBUG_ONLY( void trace(const Node_List& merge_list, const Node* merged_input_value, const StoreNode* merged_store, outputStream* out = tty) const; )
 };
 
 StoreNode* MergePrimitiveArrayStores::run() {
