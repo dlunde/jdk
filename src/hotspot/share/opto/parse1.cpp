@@ -2331,43 +2331,46 @@ void Parse::show_parse_info() {
       tty->cr();
     }
   }
-  if (ul_enabled(C, Debug, jit, opto) && (depth() == 1 || PrintOptoInlining)) {
-    // Print that we succeeded; suppress this message on the first osr parse.
-    LogMessage(jit, opto) msg;
-    NonInterleavingLogStream st(LogLevelType::Debug, msg);
-    if (C->is_osr_compilation()) {
-      st.print("[OSR]%3d", C->compile_id());
-    } else {
-      st.print("%3d", C->compile_id());
-    }
-    if (method()->is_synchronized())         st.print("s");
-    if (method()->has_exception_handlers())  st.print("!");
-    // Check this is not the final compiled version
-    if (C->trap_can_recompile() && depth() == 1) {
-      st.print("-");
-    } else {
-      st.print(" ");
-    }
-    if (depth() != 1) {
-      st.print("   ");
-    } // missing compile count
-    for (int i = 1; i < depth(); ++i) {
-      st.print("  ");
-    }
-    method()->print_short_name(&st);
-    if (is_osr_parse()) {
-      st.print(" @ %d", osr_bci());
-    }
-    if (ilt->caller_bci() != -1) {
-      st.print(" @ %d", ilt->caller_bci());
-    }
-    st.print(" (%d bytes)", method()->code_size());
-    if (ilt->count_inlines()) {
-      st.print(" __inlined %d (%d bytes)", ilt->count_inlines(),
-               ilt->count_inline_bcs());
-    }
-    // st.cr();
+  const bool both_tags = ul_enabled(C, Debug, jit, opto, optoinlining);
+  if (!ul_enabled(C, Debug, jit, opto)) return;
+  if (depth() != 1 && !both_tags)       return;
+  stringStream ss;
+  if (C->is_osr_compilation()) {
+    ss.print("[OSR]%3d", C->compile_id());
+  } else {
+    ss.print("%3d", C->compile_id());
   }
+  if (method()->is_synchronized())         ss.print("s");
+  if (method()->has_exception_handlers())  ss.print("!");
+  // Check this is not the final compiled version
+  if (C->trap_can_recompile() && depth() == 1) {
+    ss.print("-");
+  } else {
+    ss.print(" ");
+  }
+  if (depth() != 1) {
+    ss.print("   ");
+  } // missing compile count
+  for (int i = 1; i < depth(); ++i) {
+    ss.print("  ");
+  }
+  method()->print_short_name(&ss);
+  if (is_osr_parse()) {
+    ss.print(" @ %d", osr_bci());
+  }
+  if (ilt->caller_bci() != -1) {
+    ss.print(" @ %d", ilt->caller_bci());
+  }
+  ss.print(" (%d bytes)", method()->code_size());
+  if (ilt->count_inlines()) {
+    ss.print(" __inlined %d (%d bytes)", ilt->count_inlines(),
+              ilt->count_inline_bcs());
+  }
+
+  if (both_tags)
+    log_debug(jit, opto, optoinlining)("%s", ss.freeze());
+  else
+    log_debug(jit, opto)("%s", ss.freeze());
 }
 
 

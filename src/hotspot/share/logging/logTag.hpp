@@ -149,6 +149,7 @@ class outputStream;
   LOG_TAG(oopstorage) \
   LOG_TAG(optimizefill) \
   LOG_TAG(opto) \
+  LOG_TAG(optoinlining) \
   LOG_TAG(optoparse) \
   LOG_TAG(os) \
   LOG_TAG(owner) \
