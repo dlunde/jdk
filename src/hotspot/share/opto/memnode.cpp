@@ -54,6 +54,7 @@
 #include "utilities/macros.hpp"
 #include "utilities/powerOfTwo.hpp"
 #include "utilities/vmError.hpp"
+#include "logging/logStream.hpp"
 
 // Portions of code courtesy of Clifford Click
 
@@ -3045,7 +3046,11 @@ StoreNode* MergePrimitiveArrayStores::run() {
 
   StoreNode* merged_store = make_merged_store(merge_list, merged_input_value);
 
-  DEBUG_ONLY( if(TraceMergeStores) { trace(merge_list, merged_input_value, merged_store); } )
+  DEBUG_ONLY(if (ul_enabled(Compile::current(), Trace, jit, mergestores)) {
+               LogMessage(jit, mergestores) msg;
+               NonInterleavingLogStream st(LogLevelType::Trace, msg);
+               trace(merge_list, merged_input_value, merged_store, &st); 
+             })
 
   return merged_store;
 }
@@ -3431,7 +3436,7 @@ StoreNode* MergePrimitiveArrayStores::make_merged_store(const Node_List& merge_l
 }
 
 #ifdef ASSERT
-void MergePrimitiveArrayStores::trace(const Node_List& merge_list, const Node* merged_input_value, const StoreNode* merged_store) const {
+void MergePrimitiveArrayStores::trace(const Node_List& merge_list, const Node* merged_input_value, const StoreNode* merged_store, outputStream* out) const {
   stringStream ss;
   ss.print_cr("[TraceMergeStores]: Replace");
   for (int i = (int)merge_list.size() - 1; i >= 0; i--) {
@@ -3440,7 +3445,7 @@ void MergePrimitiveArrayStores::trace(const Node_List& merge_list, const Node* m
   ss.print_cr("[TraceMergeStores]: with");
   merged_input_value->dump("\n", false, &ss);
   merged_store->dump("\n", false, &ss);
-  tty->print("%s", ss.as_string());
+  out->print("%s", ss.as_string());
 }
 #endif
 
