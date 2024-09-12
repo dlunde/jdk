@@ -2332,8 +2332,8 @@ void Parse::show_parse_info() {
     }
   }
   const bool both_tags = ul_enabled(C, Debug, jit, opto, optoinlining);
-  if (!ul_enabled(C, Debug, jit, opto)) return;
-  if (depth() != 1 && !both_tags)       return;
+  if (!ul_enabled(C, Debug, jit, opto) && !both_tags) return;
+  if (depth() != 1 && !both_tags)                     return;
   stringStream ss;
   if (C->is_osr_compilation()) {
     ss.print("[OSR]%3d", C->compile_id());
