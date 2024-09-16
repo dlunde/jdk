@@ -210,10 +210,10 @@ class RegMask {
   // Grow the register mask to ensure it can fit at least min_size words.
   void _grow(unsigned int min_size, bool init = true) {
     if (min_size > _rm_size) {
-      assert(min_size <= round_up_power_of_2(_RM_SIZE_MAX),
+      assert(min_size <= _RM_SIZE_MAX,
              "unexpected register mask growth");
       assert(_arena != nullptr, "register mask not growable");
-      min_size = round_up_power_of_2(min_size);
+      /* min_size = round_up_power_of_2(min_size); */
       unsigned int old_size = _rm_size;
       unsigned int old_ext_size = old_size - _RM_SIZE;
       unsigned int new_ext_size = min_size - _RM_SIZE;
@@ -268,6 +268,23 @@ class RegMask {
     }
 
     assert(valid_watermarks(), "post-condition");
+  }
+
+  void _trim_watermarks() {
+    if (_hwm < _lwm) { return; }
+    int count = 0;
+    while ((_hwm > _lwm) && _rm_up(_hwm) == 0) {
+      _hwm--;
+      ++count;
+    }
+    while ((_lwm < _hwm) && _rm_up(_lwm) == 0) {
+      _lwm++;
+      ++count;
+    }
+    if ((_lwm == _hwm) && _rm_up(_lwm) == 0) {
+      _lwm = _rm_max();
+      _hwm = 0;
+    }
   }
 
   // Set a span of words in the register mask to a given value.
@@ -600,6 +617,7 @@ public:
     assert(reg < (int)rm_size_bits(), "register outside mask");
     unsigned int r = (unsigned int)reg;
     _rm_up(r >> _LogWordBits) &= ~(uintptr_t(1) << (r & _WordBitMask));
+    _trim_watermarks();
   }
 
   // OR 'rm' into 'this'
@@ -672,6 +690,7 @@ public:
       _hwm = rm._rm_max();
     }
     set_AllStack(is_AllStack() && !rm.is_AllStack());
+    _trim_watermarks();
     assert(valid_watermarks(), "sanity");
   }
 
@@ -694,6 +713,7 @@ public:
       assert(i + rm_index_diff >= 0, "sanity");
       _rm_up(i) &= ~rm._rm_up(i + rm_index_diff);
     }
+    _trim_watermarks();
     assert(valid_watermarks(), "sanity");
   }
 
