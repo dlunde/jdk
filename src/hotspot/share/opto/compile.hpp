@@ -515,10 +515,22 @@ private:
 
  public:
 
+  template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG,
+            LogTagType T2 = LogTag::__NO_TAG, LogTagType T3 = LogTag::__NO_TAG,
+            LogTagType T4 = LogTag::__NO_TAG,
+            LogTagType GuardTag = LogTag::__NO_TAG>
+  bool should_print_ul(LogLevelType level) {
+    return LogImpl<T0, T1, T2, T3, T4, GuardTag>::is_level(level) &&
+           C->directive()->should_ul();
+  }
+
+#define ul_enabled(C, level, ...)                                              \
+  (C->should_print_ul<LOG_TAGS(__VA_ARGS__)>(LogLevelType::level))
+
   void* barrier_set_state() const { return _barrier_set_state; }
 
   stringStream* print_inlining_stream() {
-    assert(print_inlining() || print_intrinsics(), "PrintInlining off?");
+    assert(ul_enabled(this, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining), "PrintInlining off?");
     return _print_inlining_stream;
   }
 
@@ -534,17 +546,6 @@ private:
     print_inlining_stream()->print("%s", ss.freeze());
   }
 
-  template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG,
-            LogTagType T2 = LogTag::__NO_TAG, LogTagType T3 = LogTag::__NO_TAG,
-            LogTagType T4 = LogTag::__NO_TAG,
-            LogTagType GuardTag = LogTag::__NO_TAG>
-  bool should_print_ul(LogLevelType level) {
-    return LogImpl<T0, T1, T2, T3, T4, GuardTag>::is_level(level) &&
-           C->directive()->should_ul();
-  }
-
-#define ul_enabled(C, level, ...)                                              \
-  (C->should_print_ul<LOG_TAGS(__VA_ARGS__)>(LogLevelType::level))
 
 #ifndef PRODUCT
   IdealGraphPrinter* igv_printer() { return _igv_printer; }

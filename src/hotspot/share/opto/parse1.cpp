@@ -2331,7 +2331,7 @@ void Parse::show_parse_info() {
       tty->cr();
     }
   }
-  const bool both_tags = ul_enabled(C, Debug, jit, opto, optoinlining);
+  const bool both_tags = ul_enabled(C, Debug, jit, opto, inlining);
   if (!ul_enabled(C, Debug, jit, opto) && !both_tags) return;
   if (depth() != 1 && !both_tags)                     return;
   stringStream ss;
@@ -2368,7 +2368,7 @@ void Parse::show_parse_info() {
   }
 
   if (both_tags)
-    log_debug(jit, opto, optoinlining)("%s", ss.freeze());
+    log_debug(jit, opto, inlining)("%s", ss.freeze());
   else
     log_debug(jit, opto)("%s", ss.freeze());
 }

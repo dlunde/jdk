@@ -2093,7 +2093,7 @@ void Compile::inline_incrementally(PhaseIterGVN& igvn) {
       }
 
       if (live_nodes() > (uint)LiveNodeCountInliningCutoff) {
-        bool do_print_inlining = print_inlining() || print_intrinsics();
+        bool do_print_inlining = ul_enabled(C, Debug, jit, inliningorintrinsics);
         if (do_print_inlining || log() != nullptr) {
           // Print inlining message for candidates that we couldn't inline for lack of space.
           for (int i = 0; i < _late_inlines.length(); i++) {
@@ -2101,8 +2101,9 @@ void Compile::inline_incrementally(PhaseIterGVN& igvn) {
             const char* msg = "live nodes > LiveNodeCountInliningCutoff";
             if (do_print_inlining) {
               cg->print_inlining_late(InliningResult::FAILURE, msg);
+            } else {
+              log_late_inline_failure(cg, msg);
             }
-            log_late_inline_failure(cg, msg);
           }
         }
         break; // finish
@@ -4509,7 +4510,7 @@ Node* Compile::constrained_convI2L(PhaseGVN* phase, Node* value, const TypeInt* 
 // way we can update the inlining message for late inlining call site
 // when the inlining is attempted again.
 void Compile::print_inlining_init() {
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     // print_inlining_init is actually called several times.
     print_inlining_reset();
     _print_inlining_list = new (comp_arena())GrowableArray<PrintInliningBuffer*>(comp_arena(), 1, 1, new PrintInliningBuffer());
@@ -4517,7 +4518,7 @@ void Compile::print_inlining_init() {
 }
 
 void Compile::print_inlining_reinit() {
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     print_inlining_reset();
   }
 }
@@ -4527,7 +4528,7 @@ void Compile::print_inlining_reset() {
 }
 
 void Compile::print_inlining_commit() {
-  assert(print_inlining() || print_intrinsics(), "PrintInlining off?");
+  assert(ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining), "PrintInlining off?");
   // Transfer the message from _print_inlining_stream to the current
   // _print_inlining_list buffer and clear _print_inlining_stream.
   _print_inlining_list->at(_print_inlining_idx)->ss()->write(_print_inlining_stream->base(), _print_inlining_stream->size());
@@ -4545,7 +4546,7 @@ Compile::PrintInliningBuffer* Compile::print_inlining_current() {
 }
 
 void Compile::print_inlining_update(CallGenerator* cg) {
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     if (cg->is_late_inline()) {
       if (print_inlining_current()->cg() != cg &&
           (print_inlining_current()->cg() != nullptr ||
@@ -4566,7 +4567,7 @@ void Compile::print_inlining_update(CallGenerator* cg) {
 void Compile::print_inlining_move_to(CallGenerator* cg) {
   // We resume inlining at a late inlining call site. Locate the
   // corresponding inlining buffer so that we can update it.
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     for (int i = 0; i < _print_inlining_list->length(); i++) {
       if (_print_inlining_list->at(i)->cg() == cg) {
         _print_inlining_idx = i;
@@ -4578,7 +4579,7 @@ void Compile::print_inlining_move_to(CallGenerator* cg) {
 }
 
 void Compile::print_inlining_update_delayed(CallGenerator* cg) {
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     assert(_print_inlining_stream->size() > 0, "missing inlining msg");
     assert(print_inlining_current()->cg() == cg, "wrong entry");
     // replace message with new message
@@ -4594,7 +4595,7 @@ void Compile::print_inlining_assert_ready() {
 
 void Compile::process_print_inlining() {
   assert(_late_inlines.length() == 0, "not drained yet");
-  if (print_inlining() || print_intrinsics()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics) || ul_enabled(C, Debug, jit, inlining)) {
     ResourceMark rm;
     stringStream ss;
     assert(_print_inlining_list != nullptr, "process_print_inlining should be called only once.");
@@ -4618,7 +4619,11 @@ void Compile::process_print_inlining() {
 
 void Compile::dump_print_inlining() {
   if (_print_inlining_output != nullptr) {
-    tty->print_raw(_print_inlining_output);
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics) && ul_enabled(C, Debug, jit, inlining)) {
+      log_debug(jit, inliningorintrinsics)("%s", _print_inlining_output);
+    } else if (ul_enabled(C, Debug, jit, inlining)) {
+      log_debug(jit, inlining)("%s", _print_inlining_output);
+    }
   }
 }
 

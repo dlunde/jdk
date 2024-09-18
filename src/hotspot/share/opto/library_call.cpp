@@ -102,10 +102,10 @@ JVMState* LibraryIntrinsic::generate(JVMState* jvms) {
   Compile* C = kit.C;
   int nodes = C->unique();
 #ifndef PRODUCT
-  if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
+  if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
     char buf[1000];
     const char* str = vmIntrinsics::short_name_as_C_string(intrinsic_id(), buf, sizeof(buf));
-    tty->print_cr("Intrinsic %s", str);
+    log_trace(jit, inliningorintrinsics)("Intrinsic %s", str);
   }
 #endif
   ciMethod* callee = kit.callee();
@@ -119,7 +119,7 @@ JVMState* LibraryIntrinsic::generate(JVMState* jvms) {
     const char *inline_msg = is_virtual() ? "(intrinsic, virtual)"
                                           : "(intrinsic)";
     CompileTask::print_inlining_ul(callee, jvms->depth() - 1, bci, InliningResult::SUCCESS, inline_msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
       C->print_inlining(callee, jvms->depth() - 1, bci, InliningResult::SUCCESS, inline_msg);
     }
     C->gather_intrinsic_statistics(intrinsic_id(), is_virtual(), Compile::_intrinsic_worked);
@@ -147,7 +147,7 @@ JVMState* LibraryIntrinsic::generate(JVMState* jvms) {
                          : "failed to inline (intrinsic), method not annotated";
     }
     CompileTask::print_inlining_ul(callee, jvms->depth() - 1, bci, InliningResult::FAILURE, msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
       C->print_inlining(callee, jvms->depth() - 1, bci, InliningResult::FAILURE, msg);
     }
   } else {
@@ -158,9 +158,8 @@ JVMState* LibraryIntrinsic::generate(JVMState* jvms) {
                      vmIntrinsics::name_at(intrinsic_id()),
                      is_virtual() ? " (virtual)" : "", bci);
     const char *msg = msg_stream.freeze();
-    log_debug(jit, inlining)("%s", msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
-      tty->print("%s", msg);
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
+      log_debug(jit, inliningorintrinsics)("%s", msg);
     }
   }
   C->gather_intrinsic_statistics(intrinsic_id(), is_virtual(), Compile::_intrinsic_failed);
@@ -176,10 +175,10 @@ Node* LibraryIntrinsic::generate_predicate(JVMState* jvms, int predicate) {
   _last_predicate = predicate;
 #ifndef PRODUCT
   assert(is_predicated() && predicate < predicates_count(), "sanity");
-  if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
+  if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
     char buf[1000];
     const char* str = vmIntrinsics::short_name_as_C_string(intrinsic_id(), buf, sizeof(buf));
-    tty->print_cr("Predicate for intrinsic %s", str);
+    log_trace(jit, inliningorintrinsics)("Predicate for intrinsic %s", str);
   }
 #endif
   ciMethod* callee = kit.callee();
@@ -190,7 +189,7 @@ Node* LibraryIntrinsic::generate_predicate(JVMState* jvms, int predicate) {
     const char *inline_msg = is_virtual() ? "(intrinsic, virtual, predicate)"
                                           : "(intrinsic, predicate)";
     CompileTask::print_inlining_ul(callee, jvms->depth() - 1, bci, InliningResult::SUCCESS, inline_msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
       C->print_inlining(callee, jvms->depth() - 1, bci, InliningResult::SUCCESS, inline_msg);
     }
     C->gather_intrinsic_statistics(intrinsic_id(), is_virtual(), Compile::_intrinsic_worked);
@@ -208,7 +207,7 @@ Node* LibraryIntrinsic::generate_predicate(JVMState* jvms, int predicate) {
     // Not a root compile.
     const char* msg = "failed to generate predicate for intrinsic";
     CompileTask::print_inlining_ul(kit.callee(), jvms->depth() - 1, bci, InliningResult::FAILURE, msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
       C->print_inlining(kit.callee(), jvms->depth() - 1, bci, InliningResult::FAILURE, msg);
     }
   } else {
@@ -220,7 +219,7 @@ Node* LibraryIntrinsic::generate_predicate(JVMState* jvms, int predicate) {
                      is_virtual() ? " (virtual)" : "", bci);
     const char *msg = msg_stream.freeze();
     log_debug(jit, inlining)("%s", msg);
-    if (C->print_intrinsics() || C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
       C->print_inlining_stream()->print("%s", msg);
     }
   }
@@ -2281,9 +2280,15 @@ const TypeOopPtr* LibraryCallKit::sharpen_unsafe_type(Compile::AliasType* alias_
   }
   if (result != nullptr) {
 #ifndef PRODUCT
-    if (C->print_intrinsics() || C->print_inlining()) {
-      tty->print("  from base type:  ");  adr_type->dump(); tty->cr();
-      tty->print("  sharpened value: ");  result->dump();    tty->cr();
+    if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
+      LogMessage(jit, inliningorintrinsics) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print("  from base type:  ");
+      adr_type->dump_on(&st);
+      st.cr();
+      st.print("  sharpened value: ");
+      result->dump_on(&st);
+      st.cr();
     }
 #endif
   }
@@ -3946,12 +3951,13 @@ bool LibraryCallKit::inline_native_Class_query(vmIntrinsics::ID id) {
   if (mirror_con == nullptr)  return false;  // cannot happen?
 
 #ifndef PRODUCT
-  if (C->print_intrinsics() || C->print_inlining()) {
+  if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
     ciType* k = mirror_con->java_mirror_type();
     if (k) {
-      tty->print("Inlining %s on constant Class ", vmIntrinsics::name_at(intrinsic_id()));
-      k->print_name();
-      tty->cr();
+      stringStream ss;
+      ss.print("Inlining %s on constant Class ", vmIntrinsics::name_at(intrinsic_id()));
+      k->print_name_on(&ss);
+      log_debug(jit, inliningorintrinsics)("%s\n", ss.freeze());
     }
   }
 #endif
@@ -4816,15 +4822,15 @@ bool LibraryCallKit::inline_native_getClass() {
 // caller sensitive methods.
 bool LibraryCallKit::inline_native_Reflection_getCallerClass() {
 #ifndef PRODUCT
-  if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
-    tty->print_cr("Attempting to inline sun.reflect.Reflection.getCallerClass");
+  if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
+    log_trace(jit, inliningorintrinsics)("Attempting to inline sun.reflect.Reflection.getCallerClass");
   }
 #endif
 
   if (!jvms()->has_method()) {
 #ifndef PRODUCT
-    if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
-      tty->print_cr("  Bailing out because intrinsic was inlined at top level");
+    if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
+      log_trace(jit, inliningorintrinsics)("  Bailing out because intrinsic was inlined at top level");
     }
 #endif
     return false;
@@ -4847,8 +4853,8 @@ bool LibraryCallKit::inline_native_Reflection_getCallerClass() {
       // Frame 0 and 1 must be caller sensitive (see JVM_GetCallerClass).
       if (!m->caller_sensitive()) {
 #ifndef PRODUCT
-        if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
-          tty->print_cr("  Bailing out: CallerSensitive annotation expected at frame %d", n);
+        if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
+          log_trace(jit, inliningorintrinsics)("  Bailing out: CallerSensitive annotation expected at frame %d", n);
         }
 #endif
         return false;  // bail-out; let JVM_GetCallerClass do the work
@@ -4863,12 +4869,14 @@ bool LibraryCallKit::inline_native_Reflection_getCallerClass() {
         set_result(makecon(TypeInstPtr::make(caller_mirror)));
 
 #ifndef PRODUCT
-        if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
-          tty->print_cr("  Succeeded: caller = %d) %s.%s, JVMS depth = %d", n, caller_klass->name()->as_utf8(), caller_jvms->method()->name()->as_utf8(), jvms()->depth());
-          tty->print_cr("  JVM state at this point:");
+        if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
+          LogMessage(jit, inliningorintrinsics) msg;
+          NonInterleavingLogStream st(LogLevelType::Trace, msg);
+          st.print_cr("  Succeeded: caller = %d) %s.%s, JVMS depth = %d", n, caller_klass->name()->as_utf8(), caller_jvms->method()->name()->as_utf8(), jvms()->depth());
+          st.print_cr("  JVM state at this point:");
           for (int i = jvms()->depth(), n = 1; i >= 1; i--, n++) {
             ciMethod* m = jvms()->of_depth(i)->method();
-            tty->print_cr("   %d) %s.%s", n, m->holder()->name()->as_utf8(), m->name()->as_utf8());
+            st.print_cr("   %d) %s.%s", n, m->holder()->name()->as_utf8(), m->name()->as_utf8());
           }
         }
 #endif
@@ -4879,12 +4887,14 @@ bool LibraryCallKit::inline_native_Reflection_getCallerClass() {
   }
 
 #ifndef PRODUCT
-  if ((C->print_intrinsics() || C->print_inlining()) && Verbose) {
-    tty->print_cr("  Bailing out because caller depth exceeded inlining depth = %d", jvms()->depth());
-    tty->print_cr("  JVM state at this point:");
+  if (ul_enabled(C, Trace, jit, inliningorintrinsics)) {
+    LogMessage(jit, inliningorintrinsics) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print_cr("  Bailing out because caller depth exceeded inlining depth = %d", jvms()->depth());
+    st.print_cr("  JVM state at this point:");
     for (int i = jvms()->depth(), n = 1; i >= 1; i--, n++) {
       ciMethod* m = jvms()->of_depth(i)->method();
-      tty->print_cr("   %d) %s.%s", n, m->holder()->name()->as_utf8(), m->name()->as_utf8());
+      st.print_cr("   %d) %s.%s", n, m->holder()->name()->as_utf8(), m->name()->as_utf8());
     }
   }
 #endif

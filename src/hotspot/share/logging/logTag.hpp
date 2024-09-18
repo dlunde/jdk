@@ -99,8 +99,10 @@ class outputStream;
   LOG_TAG(init) \
   LOG_TAG(inlinecache)\
   LOG_TAG(inlining) \
+  LOG_TAG(inliningorintrinsics) \
   LOG_TAG(install) \
   LOG_TAG(interpreter) \
+  LOG_TAG(intrinsics) \
   LOG_TAG(itables) \
   LOG_TAG(jfr) \
   LOG_TAG(jit) \
@@ -149,7 +151,6 @@ class outputStream;
   LOG_TAG(oopstorage) \
   LOG_TAG(optimizefill) \
   LOG_TAG(opto) \
-  LOG_TAG(optoinlining) \
   LOG_TAG(optoparse) \
   LOG_TAG(os) \
   LOG_TAG(owner) \

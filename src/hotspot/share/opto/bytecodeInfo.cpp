@@ -36,6 +36,7 @@
 #include "opto/parse.hpp"
 #include "runtime/handles.inline.hpp"
 #include "utilities/events.hpp"
+#include "logging/logStream.hpp"
 
 //=============================================================================
 //------------------------------InlineTree-------------------------------------
@@ -144,9 +145,11 @@ bool InlineTree::should_inline(ciMethod* callee_method, ciMethod* caller_method,
   // Check for too many throws (and not too huge)
   if(callee_method->interpreter_throwout_count() > InlineThrowCount &&
      size < InlineThrowMaxSize ) {
-    if (C->print_inlining() && Verbose) {
-      CompileTask::print_inline_indent(inline_level());
-      tty->print_cr("Inlined method with many throws (throws=%d):", callee_method->interpreter_throwout_count());
+    if (ul_enabled(C, Trace, jit, inlining)) {
+      LogMessage(jit, inlining) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      CompileTask::print_inline_indent(inline_level(), &st);
+      st.print_cr("Inlined method with many throws (throws=%d):", callee_method->interpreter_throwout_count());
     }
     set_msg("many throws");
     return true;
@@ -548,7 +551,7 @@ void InlineTree::print_inlining(ciMethod* callee_method, int caller_bci,
   }
   CompileTask::print_inlining_ul(callee_method, inline_level(),
                                  caller_bci, inlining_result_of(success), inline_msg);
-  if (C->print_inlining()) {
+  if (ul_enabled(C, Debug, jit, inlining)) {
     C->print_inlining(callee_method, inline_level(), caller_bci, inlining_result_of(success), inline_msg);
     guarantee(callee_method != nullptr, "would crash in CompilerEvent::InlineEvent::post");
     if (Verbose) {
@@ -634,9 +637,11 @@ InlineTree *InlineTree::build_inline_tree_for_callee( ciMethod* callee_method, J
                callee_method->is_compiled_lambda_form()) {
       max_inline_level_adjust += 1;  // don't count method handle calls from java.lang.invoke implementation
     }
-    if (max_inline_level_adjust != 0 && C->print_inlining() && (Verbose || WizardMode)) {
-      CompileTask::print_inline_indent(inline_level());
-      tty->print_cr(" \\-> discounting inline depth");
+    if (max_inline_level_adjust != 0 && ul_enabled(C, Trace, jit, inlining)) {
+      LogMessage(jit, inlining) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      CompileTask::print_inline_indent(inline_level(), &st);
+      st.print_cr(" \\-> discounting inline depth");
     }
     if (max_inline_level_adjust != 0 && C->log()) {
       int id1 = C->log()->identify(caller_jvms->method());

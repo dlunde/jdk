@@ -4497,10 +4497,6 @@ void GraphBuilder::print_inlining(ciMethod* callee, const char* msg, bool succes
 
   CompileTask::print_inlining_ul(callee, scope()->level(), bci(), inlining_result_of(success), msg);
 
-  if (!compilation()->directive()->PrintInliningOption) {
-    return;
-  }
-  CompileTask::print_inlining_tty(callee, scope()->level(), bci(), inlining_result_of(success), msg);
   if (success && CIPrintMethodCodes) {
     callee->print_codes();
   }

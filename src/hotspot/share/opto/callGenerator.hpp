@@ -189,7 +189,7 @@ class CallGenerator : public ArenaObj {
 private:
   static void print_inlining_impl(Compile* C, ciMethod* callee, int inline_level, int bci,
                                   InliningResult result, const char* msg) {
-    if (C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inlining)) {
       C->print_inlining(callee, inline_level, bci, result, msg);
     }
   }

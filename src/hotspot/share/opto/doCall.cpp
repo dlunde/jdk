@@ -59,24 +59,19 @@ static void print_trace_type_profile(outputStream* out, int depth, ciKlass* prof
 
 static void trace_type_profile(Compile* C, ciMethod* method, int depth, int bci, ciMethod* prof_method,
                                ciKlass* prof_klass, int site_count, int receiver_count) {
-  if (TraceTypeProfile || C->print_inlining()) {
-    outputStream* out = tty;
-    if (!C->print_inlining()) {
-      if (!PrintOpto && !PrintCompilation) {
-        method->print_short_name();
-        tty->cr();
-      }
-      CompileTask::print_inlining_tty(prof_method, depth, bci, InliningResult::SUCCESS);
-    } else {
-      out = C->print_inlining_stream();
+  if (TraceTypeProfile) {
+    if (!PrintOpto && !PrintCompilation) {
+      method->print_short_name();
+      tty->cr();
     }
-    print_trace_type_profile(out, depth, prof_klass, site_count, receiver_count);
+    CompileTask::print_inlining_tty(prof_method, depth, bci, InliningResult::SUCCESS);
+    print_trace_type_profile(tty, depth, prof_klass, site_count, receiver_count);
   }
 
-  LogTarget(Debug, jit, inlining) lt;
-  if (lt.is_enabled()) {
-    LogStream ls(lt);
-    print_trace_type_profile(&ls, depth, prof_klass, site_count, receiver_count);
+  if (ul_enabled(C, Debug, jit, inlining)) {
+    LogMessage(jit, inlining) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    print_trace_type_profile(&st, depth, prof_klass, site_count, receiver_count);
   }
 }
 
@@ -372,7 +367,7 @@ CallGenerator* Compile::call_generator(ciMethod* callee, int vtable_index, bool 
   // Use a more generic tactic, like a simple call.
   if (call_does_dispatch) {
     const char* msg = "virtual call";
-    if (C->print_inlining()) {
+    if (ul_enabled(C, Debug, jit, inlining)) {
       print_inlining(callee, jvms->depth() - 1, jvms->bci(), InliningResult::FAILURE, msg);
     }
     C->log_inline_failure(msg);
