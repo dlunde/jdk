@@ -407,21 +407,6 @@ void PhaseChaitin::Register_Allocate() {
     _live = &live;                // Mark LIVE as being available
   }
 
-  static uint max_num_lrgs = 0;
-  static uint max_num_blocks = 0;
-  if (UseNewCode && _lrg_map.max_lrg_id() > max_num_lrgs) {
-    max_num_lrgs = _lrg_map.max_lrg_id();
-    tty->print("New max #lrgs: %u (#blocks = %u)", max_num_lrgs, _cfg.number_of_blocks());
-    if (C->method()) { C->method()->print_short_name(); }
-    tty->cr();
-  }
-  if (UseNewCode && _cfg.number_of_blocks() > max_num_blocks) {
-    max_num_blocks = _cfg.number_of_blocks();
-    tty->print("New max #blocks: %u (#lrgs = %u)", max_num_blocks, _lrg_map.max_lrg_id());
-    if (C->method()) { C->method()->print_short_name(); }
-    tty->cr();
-  }
-
   // Base pointers are currently "used" by instructions which define new
   // derived pointers.  This makes base pointers live up to the where the
   // derived pointer is made, but not beyond.  Really, they need to be live
