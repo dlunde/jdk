@@ -2963,10 +2963,21 @@ void Compile::Code_Gen() {
   _regalloc = &regalloc;
   {
     TracePhase tp("regalloc", &timers[_t_registerAllocation]);
+
+    elapsedTimer t;
+    unsigned live_nodes_count = live_nodes();
+    unsigned blocks = _cfg->number_of_blocks();
+    t.start();
+
     // Perform register allocation.  After Chaitin, use-def chains are
     // no longer accurate (at spill code) and so must be ignored.
     // Node->LRG->reg mappings are still accurate.
     _regalloc->Register_Allocate();
+
+    t.stop();
+    if (UseNewCode) {
+      tty->print_cr("LOLLTOTT,%u,%u,%lu",live_nodes_count,blocks,t.ticks());
+    }
 
     // Bail out if the allocator builds too many nodes
     if (failing()) {
