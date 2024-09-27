@@ -4369,8 +4369,8 @@ Compile::TracePhase::~TracePhase() {
   if (_compile->failing()) return;
 #ifdef ASSERT
   if (PrintIdealNodeCount) {
-    tty->print_cr("phase name='%s' nodes='%d' live='%d' live_graph_walk='%d'",
-                  _phase_name, _compile->unique(), _compile->live_nodes(), _compile->count_live_nodes_by_graph_walk());
+    tty->print_cr("phase name='%s' nodes='%d' live='%d' live_graph_walk='%d' max_node_limit='%d'",
+                  _phase_name, _compile->unique(), _compile->live_nodes(), _compile->count_live_nodes_by_graph_walk(), _compile->max_node_limit());
   }
 
   if (VerifyIdealNodeCount) {
