@@ -191,7 +191,7 @@ private:
 
 public:
   static constexpr bool can_fit(OptoReg::Name n) {
-    return n <= std::numeric_limits<Name>::max();
+    return n <= std::numeric_limits<OptoRegPair::Name>::max();
   }
   void set_bad() {
     _second = OptoReg::Bad;
