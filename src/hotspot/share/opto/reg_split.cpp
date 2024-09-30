@@ -535,6 +535,16 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     }
   }
 
+  if (UseNewCode && C->method() != nullptr) {
+    tty->print("live_nodes = %u  ", C->live_nodes());
+    tty->print("maxlrg = %u  ", maxlrg);
+    tty->print("number_of_blocks = %u  ", _cfg.number_of_blocks());
+    tty->print("spill_cnt = %u  ", spill_cnt);
+    tty->print("method"); C->method()->print_short_name(tty);
+    tty->cr();
+  }
+
+
   // Create side arrays for propagating reaching defs info.
   // Each block needs a node pointer for each spilling live range for the
   // Def which is live into the block.  Phi nodes handle multiple input
@@ -549,6 +559,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   bool  **UP          = NEW_SPLIT_ARRAY( bool*, _cfg.number_of_blocks() + 1);
   Node  **debug_defs  = NEW_SPLIT_ARRAY( Node*, spill_cnt );
   VectorSet **UP_entry= NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
+
+  assert(spill_cnt <= 5000, "excessive spill");
 
   // Initialize Reaches & UP
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
