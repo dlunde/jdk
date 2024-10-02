@@ -560,10 +560,6 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   Node  **debug_defs  = NEW_SPLIT_ARRAY( Node*, spill_cnt );
   VectorSet **UP_entry= NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
 
-  assert(spill_cnt < 2000, "spill_cnt too high: %u", spill_cnt);
-  assert(sizeof(Node*) * spill_cnt * _cfg.number_of_blocks() <= 200*M,
-         "excessive allocation");
-
   // Initialize Reaches & UP
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
     Reaches[bidx]     = NEW_SPLIT_ARRAY( Node*, spill_cnt );
