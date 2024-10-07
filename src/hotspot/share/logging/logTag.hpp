@@ -159,6 +159,7 @@ class outputStream;
   LOG_TAG(page) \
   LOG_TAG(pagesize) \
   LOG_TAG(parser) \
+  LOG_TAG(partialpeeling) \
   LOG_TAG(patch) \
   LOG_TAG(path) \
   LOG_TAG(perf) \

@@ -3368,8 +3368,8 @@ int PhaseIdealLoop::clone_for_use_outside_loop( IdealLoopTree *loop, Node* n, No
     get_loop(use_c)->_body.push(n_clone);
     _igvn.register_new_node_with_optimizer(n_clone);
 #ifndef PRODUCT
-    if (TracePartialPeeling) {
-      tty->print_cr("loop exit cloning old: %d new: %d newbb: %d", n->_idx, n_clone->_idx, get_ctrl(n_clone)->_idx);
+    if (ul_enabled(C, Trace, jit, partialpeeling)) {
+      log_trace(jit, partialpeeling)("loop exit cloning old: %d new: %d newbb: %d", n->_idx, n_clone->_idx, get_ctrl(n_clone)->_idx);
     }
 #endif
   }
@@ -3406,8 +3406,8 @@ void PhaseIdealLoop::clone_for_special_use_inside_loop( IdealLoopTree *loop, Nod
     sink_list.push(n_clone);
     not_peel.set(n_clone->_idx);
 #ifndef PRODUCT
-    if (TracePartialPeeling) {
-      tty->print_cr("special not_peeled cloning old: %d new: %d", n->_idx, n_clone->_idx);
+    if (ul_enabled(C, Trace, jit, partialpeeling)) {
+      log_trace(jit, partialpeeling)("special not_peeled cloning old: %d new: %d", n->_idx, n_clone->_idx);
     }
 #endif
     while( worklist.size() ) {
@@ -3752,8 +3752,8 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
         opc == Op_Jump      ||
         opc == Op_JumpProj) {
 #ifndef PRODUCT
-      if (TracePartialPeeling) {
-        tty->print_cr("\nExit control too complex: lp: %d", head->_idx);
+      if (ul_enabled(C, Trace, jit, partialpeeling)) {
+        log_trace(jit, partialpeeling)("\nExit control too complex: lp: %d", head->_idx);
       }
 #endif
       return false;
@@ -3816,8 +3816,10 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
     loop->dump_head(&st);
   }
 
-  if (TracePartialPeeling) {
-    tty->print_cr("before partial peel one iteration");
+  if (ul_enabled(C, Trace, jit, partialpeeling)) {
+    LogMessage(jit, partialpeeling) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print_cr("before partial peel one iteration");
     Node_List wl;
     Node* t = head->in(2);
     while (true) {
@@ -3827,8 +3829,8 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
     }
     while (wl.size() > 0) {
       Node* tt = wl.pop();
-      tt->dump();
-      if (tt == last_peel) tty->print_cr("-- cut --");
+      tt->dump(&st);
+      if (tt == last_peel) st.print_cr("-- cut --");
     }
   }
 #endif
@@ -3894,8 +3896,8 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
   }
 
 #ifndef PRODUCT
-  if (TracePartialPeeling) {
-    tty->print_cr("\npeeled list");
+  if (ul_enabled(C, Trace, jit, partialpeeling)) {
+    log_trace(jit, partialpeeling)("\npeeled list");
   }
 #endif
 
@@ -3906,7 +3908,11 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
   for (uint i = 0; i < peel_list.size();) {
     Node* n = peel_list.at(i);
 #ifndef PRODUCT
-  if (TracePartialPeeling) n->dump();
+  if (ul_enabled(C, Trace, jit, partialpeeling)) {
+    LogMessage(jit, partialpeeling) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    n->dump(&st);
+  }
 #endif
     bool incr = true;
     if (!n->is_CFG()) {
@@ -3930,9 +3936,9 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
             peel_list.remove(i);
             incr = false;
 #ifndef PRODUCT
-            if (TracePartialPeeling) {
-              tty->print_cr("sink to not_peeled region: %d newbb: %d",
-                            n->_idx, get_ctrl(n)->_idx);
+            if (ul_enabled(C, Trace, jit, partialpeeling)) {
+              log_trace(jit, partialpeeling)("sink to not_peeled region: %d newbb: %d",
+                                             n->_idx, get_ctrl(n)->_idx);
             }
 #endif
           }
@@ -3953,9 +3959,9 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
 
   if (too_many_clones || exceed_node_budget || exceed_phi_limit) {
 #ifndef PRODUCT
-    if (TracePartialPeeling && exceed_phi_limit) {
-      tty->print_cr("\nToo many new phis: %d  old %d new cmpi: %c",
-                    new_phi_cnt, old_phi_cnt, new_peel_if != nullptr?'T':'F');
+    if (ul_enabled(C, Trace, jit, partialpeeling) && exceed_phi_limit) {
+      log_trace(jit, partialpeeling)("\nToo many new phis: %d  old %d new cmpi: %c",
+                                     new_phi_cnt, old_phi_cnt, new_peel_if != nullptr ? 'T' : 'F');
     }
 #endif
     if (new_peel_if != nullptr) {
@@ -4124,8 +4130,10 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
   loop->record_for_igvn();
 
 #ifndef PRODUCT
-  if (TracePartialPeeling) {
-    tty->print_cr("\nafter partial peel one iteration");
+  if (ul_enabled(C, Trace, jit, partialpeeling)) {
+    LogMessage(jit, partialpeeling) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print_cr("\nafter partial peel one iteration");
     Node_List wl;
     Node* t = last_peel;
     while (true) {
@@ -4135,10 +4143,10 @@ bool PhaseIdealLoop::partial_peel( IdealLoopTree *loop, Node_List &old_new ) {
     }
     while (wl.size() > 0) {
       Node* tt = wl.pop();
-      if (tt == head) tty->print_cr("orig head");
-      else if (tt == new_head_clone) tty->print_cr("new head");
-      else if (tt == head_clone) tty->print_cr("clone head");
-      tt->dump();
+      if (tt == head)                st.print_cr("orig head");
+      else if (tt == new_head_clone) st.print_cr("new head");
+      else if (tt == head_clone)     st.print_cr("clone head");
+      tt->dump(&st);
     }
   }
 #endif
