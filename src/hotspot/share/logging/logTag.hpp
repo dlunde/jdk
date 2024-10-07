@@ -41,6 +41,7 @@ class outputStream;
   LOG_TAG(arguments) \
   LOG_TAG(array) \
   LOG_TAG(attach) \
+  LOG_TAG(bailouts) \
   LOG_TAG(barrier) \
   LOG_TAG(blocks) \
   LOG_TAG(bot) \

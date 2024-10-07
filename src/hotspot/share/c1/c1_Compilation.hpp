@@ -33,6 +33,7 @@
 #include "compiler/compilerDirectives.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/deoptimization.hpp"
+#include "logging/log.hpp"
 
 class CompilationFailureInfo;
 class CompilationResourceObj;
@@ -134,6 +135,18 @@ class Compilation: public StackObj {
   static Compilation* current() {
     return (Compilation*) ciEnv::current()->compiler_data();
   }
+
+  template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG,
+            LogTagType T2 = LogTag::__NO_TAG, LogTagType T3 = LogTag::__NO_TAG,
+            LogTagType T4 = LogTag::__NO_TAG,
+            LogTagType GuardTag = LogTag::__NO_TAG>
+  bool should_print_ul(LogLevelType level) {
+    return LogImpl<T0, T1, T2, T3, T4, GuardTag>::is_level(level) &&
+           directive()->should_ul();
+  }
+
+#define ul_enabled(C, level, ...)                                              \
+  (C->should_print_ul<LOG_TAGS(__VA_ARGS__)>(LogLevelType::level))
 
   // accessors
   ciEnv* env() const                             { return _env; }
