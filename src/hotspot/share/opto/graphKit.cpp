@@ -50,6 +50,7 @@
 #include "utilities/bitMap.inline.hpp"
 #include "utilities/powerOfTwo.hpp"
 #include "utilities/growableArray.hpp"
+#include "logging/logStream.hpp"
 
 //----------------------------GraphKit-----------------------------------------
 // Main utility constructor.
@@ -4049,12 +4050,15 @@ void GraphKit::add_parse_predicate(Deoptimization::DeoptReason reason, const int
   // Too many traps seen?
   if (too_many_traps(reason)) {
 #ifdef ASSERT
-    if (TraceLoopPredicate) {
+    if (ul_enabled(C, Trace, jit, looppredicate)) {
+      LogMessage(jit, looppredicate) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+
       int tc = C->trap_count(reason);
-      tty->print("too many traps=%s tcount=%d in ",
-                    Deoptimization::trap_reason_name(reason), tc);
-      method()->print(); // which method has too many predicate traps
-      tty->cr();
+      st.print("too many traps=%s tcount=%d in ",
+               Deoptimization::trap_reason_name(reason), tc);
+      method()->print(&st); // which method has too many predicate traps
+      st.cr();
     }
 #endif
     // We cannot afford to take more traps here,
