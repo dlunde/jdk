@@ -59,9 +59,9 @@ static bool check_vbox(const TypeInstPtr* vbox_type) {
 }
 #endif
 
-#define log_if_needed(...)        \
-  if (C->print_intrinsics()) {    \
-    tty->print_cr(__VA_ARGS__);   \
+#define log_if_needed(...)                     \
+  if (ul_enabled(C, Debug, jit, intrinsics)) { \
+    log_debug(jit, intrinsics)(__VA_ARGS__);   \
   }
 
 #ifndef PRODUCT

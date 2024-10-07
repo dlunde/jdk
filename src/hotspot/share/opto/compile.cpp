@@ -4623,6 +4623,8 @@ void Compile::dump_print_inlining() {
       log_debug(jit, inliningorintrinsics)("%s", _print_inlining_output);
     } else if (ul_enabled(C, Debug, jit, inlining)) {
       log_debug(jit, inlining)("%s", _print_inlining_output);
+    } else if (ul_enabled(C, Debug, jit, inliningorintrinsics)) {
+      log_debug(jit, inliningorintrinsics)("%s", _print_inlining_output);
     }
   }
 }
