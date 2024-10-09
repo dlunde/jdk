@@ -22,6 +22,7 @@
  *
  */
 
+#include "logging/logStream.hpp"
 #include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "gc/shared/gc_globals.hpp"
@@ -943,12 +944,14 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print_cr("# --- schedule_local B%d, before: ---", block->_pre_order);
-      for (uint i = 0;i < block->number_of_nodes(); i++) {
-        tty->print("# ");
-        block->get_node(i)->dump();
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print_cr("# --- schedule_local B%d, before: ---", block->_pre_order);
+      for (uint i = 0; i < block->number_of_nodes(); i++) {
+        st.print("# ");
+        block->get_node(i)->dump(&st);
       }
-      tty->print_cr("#");
+      st.print_cr("#");
     }
 #endif
 
@@ -1098,12 +1101,14 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      for (uint j=0; j< block->number_of_nodes(); j++) {
-        Node     *n = block->get_node(j);
-        int     idx = n->_idx;
-        tty->print("#   ready cnt:%3d  ", ready_cnt.at(idx));
-        tty->print("latency:%3d  ", get_latency_for_node(n));
-        tty->print("%4d: %s\n", idx, n->Name());
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      for (uint j = 0; j < block->number_of_nodes(); j++) {
+        Node *n = block->get_node(j);
+        int idx = n->_idx;
+        st.print("#   ready cnt:%3d  ", ready_cnt.at(idx));
+        st.print("latency:%3d  ", get_latency_for_node(n));
+        st.print("%4d: %s\n", idx, n->Name());
       }
     }
 #endif
@@ -1114,12 +1119,14 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print("#   ready list:");
-      for( uint i=0; i<worklist.size(); i++ ) { // Inspect entire worklist
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print("#   ready list:");
+      for (uint i = 0; i < worklist.size(); i++) { // Inspect entire worklist
         Node *n = worklist[i];      // Get Node on worklist
-        tty->print(" %d", n->_idx);
+        st.print(" %d", n->_idx);
       }
-      tty->cr();
+      st.cr();
     }
 #endif
 
@@ -1138,16 +1145,19 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print("#    select %d: %s", n->_idx, n->Name());
-      tty->print(", latency:%d", get_latency_for_node(n));
-      n->dump();
-      if (Verbose) {
-        tty->print("#   ready list:");
-        for( uint i=0; i<worklist.size(); i++ ) { // Inspect entire worklist
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print("#    select %d: %s", n->_idx, n->Name());
+      st.print(", latency:%d", get_latency_for_node(n));
+      n->dump(&st);
+      if (ul_enabled(C, Trace, jit, optopipelining)) {
+        stringStream ss;
+        ss.print("#   ready list:");
+        for (uint i = 0; i < worklist.size(); i++) { // Inspect entire worklist
           Node *n = worklist[i];      // Get Node on worklist
-          tty->print(" %d", n->_idx);
+          ss.print(" %d", n->_idx);
         }
-        tty->cr();
+        msg.trace("%s", ss.freeze());
       }
     }
 
@@ -1210,20 +1220,22 @@ bool PhaseCFG::schedule_local(Block* block, GrowableArray<int>& ready_cnt, Vecto
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print_cr("#");
-    tty->print_cr("# after schedule_local");
+    LogMessage(jit, optopipelining) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print_cr("#");
+    st.print_cr("# after schedule_local");
     for (uint i = 0;i < block->number_of_nodes();i++) {
-      tty->print("# ");
-      block->get_node(i)->dump();
+      st.print("# ");
+      block->get_node(i)->dump(&st);
     }
-    tty->print_cr("# ");
+    st.print_cr("# ");
 
     if (OptoRegScheduling && block_size_threshold_ok) {
-      tty->print_cr("# pressure info : %d", block->_pre_order);
-      _regalloc->print_pressure_info(_regalloc->_sched_int_pressure, "int register info");
-      _regalloc->print_pressure_info(_regalloc->_sched_float_pressure, "float register info");
+      st.print_cr("# pressure info : %d", block->_pre_order);
+      _regalloc->print_pressure_info(_regalloc->_sched_int_pressure, "int register info", &st);
+      _regalloc->print_pressure_info(_regalloc->_sched_float_pressure, "float register info", &st);
     }
-    tty->cr();
+    st.cr();
   }
 #endif
 

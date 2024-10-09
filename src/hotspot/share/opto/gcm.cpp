@@ -977,7 +977,7 @@ Node *Node_Backward_Iterator::next() {
 void PhaseCFG::compute_latencies_backwards(VectorSet &visited, Node_Stack &stack) {
 #ifndef PRODUCT
   if (trace_opto_pipelining())
-    tty->print("\n#---- ComputeLatenciesBackwards ----\n");
+    log_debug(jit, optopipelining)("\n#---- ComputeLatenciesBackwards ----\n");
 #endif
 
   Node_Backward_Iterator iter((Node *)_root, visited, stack, *this);
@@ -997,8 +997,10 @@ void PhaseCFG::partial_latency_of_defs(Node *n) {
   // Set the latency for this instruction
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("# latency_to_inputs: node_latency[%d] = %d for node", n->_idx, get_latency_for_node(n));
-    dump();
+    LogMessage(jit, optoparse) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("# latency_to_inputs: node_latency[%d] = %d for node", n->_idx, get_latency_for_node(n));
+    dump(&st);
   }
 #endif
 
@@ -1028,8 +1030,10 @@ void PhaseCFG::partial_latency_of_defs(Node *n) {
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print("#    in(%2d): ", j);
-      def->dump();
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print("#    in(%2d): ", j);
+      def->dump(&st);
     }
 #endif
 
@@ -1050,7 +1054,8 @@ void PhaseCFG::partial_latency_of_defs(Node *n) {
 
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print_cr("#      %d + edge_latency(%d) == %d -> %d, node_latency[%d] = %d", use_latency, j, delta_latency, current_latency, def->_idx, get_latency_for_node(def));
+      log_debug(jit, optopipelining)("#      %d + edge_latency(%d) == %d -> %d, node_latency[%d] = %d",
+                                     use_latency, j, delta_latency, current_latency, def->_idx, get_latency_for_node(def));
     }
 #endif
   }
@@ -1071,8 +1076,10 @@ int PhaseCFG::latency_from_use(Node *n, const Node *def, Node *use) {
   if (!use->is_Proj()) {
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print("#    out(): ");
-      use->dump();
+      LogMessage(jit, optopipelining) msg;
+      NonInterleavingLogStream st(LogLevelType::Debug, msg);
+      st.print("#    out(): ");
+      use->dump(&st);
     }
 #endif
 
@@ -1095,8 +1102,8 @@ int PhaseCFG::latency_from_use(Node *n, const Node *def, Node *use) {
         if (latency < l) latency = l;
 #ifndef PRODUCT
         if (trace_opto_pipelining()) {
-          tty->print_cr("#      %d + edge_latency(%d) == %d -> %d, latency = %d",
-                        nl, j, ul, l, latency);
+          log_debug(jit, optopipelining)("#      %d + edge_latency(%d) == %d -> %d, latency = %d",
+                                         nl, j, ul, l, latency);
         }
 #endif
       }
@@ -1120,8 +1127,10 @@ void PhaseCFG::latency_from_uses(Node *n) {
   // Set the latency for this instruction
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("# latency_from_outputs: node_latency[%d] = %d for node", n->_idx, get_latency_for_node(n));
-    dump();
+    LogMessage(jit, optopipelining) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("# latency_from_outputs: node_latency[%d] = %d for node", n->_idx, get_latency_for_node(n));
+    dump(&st);
   }
 #endif
   uint latency=0;
@@ -1192,15 +1201,17 @@ Block* PhaseCFG::hoist_to_cheaper_block(Block* LCA, Block* early, Node* self) {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("# Find cheaper block for latency %d: ", get_latency_for_node(self));
-    self->dump();
-    tty->print_cr("#   B%d: start latency for [%4d]=%d, end latency for [%4d]=%d, freq=%g",
-      LCA->_pre_order,
-      LCA->head()->_idx,
-      start_latency,
-      LCA->get_node(LCA->end_idx())->_idx,
-      end_latency,
-      least_freq);
+    LogMessage(jit, optopipelining) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("# Find cheaper block for latency %d: ", get_latency_for_node(self));
+    self->dump(&st);
+    st.print_cr("#   B%d: start latency for [%4d]=%d, end latency for [%4d]=%d, freq=%g",
+                LCA->_pre_order,
+                LCA->head()->_idx,
+                start_latency,
+                LCA->get_node(LCA->end_idx())->_idx,
+                end_latency,
+                least_freq);
   }
 #endif
 
@@ -1237,8 +1248,8 @@ Block* PhaseCFG::hoist_to_cheaper_block(Block* LCA, Block* early, Node* self) {
     double LCA_freq = LCA->_freq;
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print_cr("#   B%d: start latency for [%4d]=%d, end latency for [%4d]=%d, freq=%g",
-        LCA->_pre_order, LCA->head()->_idx, start_lat, end_idx, end_lat, LCA_freq);
+      log_debug(jit, optopipelining)("#   B%d: start latency for [%4d]=%d, end latency for [%4d]=%d, freq=%g",
+                                     LCA->_pre_order, LCA->head()->_idx, start_lat, end_idx, end_lat, LCA_freq);
     }
 #endif
     cand_cnt++;
@@ -1254,8 +1265,8 @@ Block* PhaseCFG::hoist_to_cheaper_block(Block* LCA, Block* early, Node* self) {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print_cr("#  Choose block B%d with start latency=%d and freq=%g",
-      least->_pre_order, start_latency, least_freq);
+    log_debug(jit, optopipelining)("#  Choose block B%d with start latency=%d and freq=%g",
+                                   least->_pre_order, start_latency, least_freq);
   }
 #endif
 
@@ -1263,7 +1274,7 @@ Block* PhaseCFG::hoist_to_cheaper_block(Block* LCA, Block* early, Node* self) {
   if (target < end_latency) {
 #ifndef PRODUCT
     if (trace_opto_pipelining()) {
-      tty->print_cr("#  Change latency for [%4d] from %d to %d", self->_idx, target, end_latency);
+      log_debug(jit, optopipelining)("#  Change latency for [%4d] from %d to %d", self->_idx, target, end_latency);
     }
 #endif
     set_latency_for_node(self, end_latency);
@@ -1282,7 +1293,7 @@ extern const char must_clone[];
 void PhaseCFG::schedule_late(VectorSet &visited, Node_Stack &stack) {
 #ifndef PRODUCT
   if (trace_opto_pipelining())
-    tty->print("\n#---- schedule_late ----\n");
+    log_debug(jit, optopipelining)("\n#---- schedule_late ----\n");
 #endif
 
   Node_Backward_Iterator iter((Node *)_root, visited, stack, *this);
@@ -1379,9 +1390,11 @@ void PhaseCFG::schedule_late(VectorSet &visited, Node_Stack &stack) {
         // information, hence a conservative solution is taken.
 #ifndef PRODUCT
         if (trace_opto_pipelining()) {
-          tty->print_cr("# Irreducible loops: schedule in home block B%d:",
+          LogMessage(jit, optopipelining) msg;
+          NonInterleavingLogStream st(LogLevelType::Debug, msg);
+          st.print_cr("# Irreducible loops: schedule in home block B%d:",
                         early->_pre_order);
-          self->dump();
+          self->dump(&st);
         }
 #endif
         schedule_node_into_block(self, early);
@@ -1486,7 +1499,7 @@ void PhaseCFG::global_code_motion() {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("\n---- Start GlobalCodeMotion ----\n");
+    log_debug(jit, optopipelining)("\n---- Start GlobalCodeMotion ----\n");
   }
 #endif
 
@@ -1531,7 +1544,7 @@ void PhaseCFG::global_code_motion() {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("\n---- Detect implicit null checks ----\n");
+    log_debug(jit, optopipelining)("\n---- Detect implicit null checks ----\n");
   }
 #endif
 
@@ -1595,7 +1608,7 @@ void PhaseCFG::global_code_motion() {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("\n---- Start Local Scheduling ----\n");
+    log_debug(jit, optopipelining)("\n---- Start Local Scheduling ----\n");
   }
 #endif
 
@@ -1625,10 +1638,12 @@ void PhaseCFG::global_code_motion() {
 
 #ifndef PRODUCT
   if (trace_opto_pipelining()) {
-    tty->print("\n---- After GlobalCodeMotion ----\n");
+    LogMessage(jit, optopipelining) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("\n---- After GlobalCodeMotion ----\n");
     for (uint i = 0; i < number_of_blocks(); i++) {
       Block* block = get_block(i);
-      block->dump();
+      block->dump(&st);
     }
   }
 #endif

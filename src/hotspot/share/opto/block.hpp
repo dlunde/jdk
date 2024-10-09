@@ -634,8 +634,8 @@ class PhaseCFG : public Phase {
   bool trace_opto_pipelining() const { return _trace_opto_pipelining; }
 
   // Debugging print of CFG
-  void dump( ) const;           // CFG only
-  void _dump_cfg( const Node *end, VectorSet &visited  ) const;
+  void dump(outputStream* out = tty) const;           // CFG only
+  void _dump_cfg(const Node *end, VectorSet &visited, outputStream* out = tty) const;
   void dump_headers();
 #else
   bool trace_opto_pipelining() const { return false; }
