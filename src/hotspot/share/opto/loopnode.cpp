@@ -359,9 +359,11 @@ void PhaseIdealLoop::insert_loop_limit_check_predicate(ParsePredicateSuccessProj
 #ifndef PRODUCT
   // report that the loop predication has been actually performed
   // for this loop
-  if (TraceLoopLimitCheck) {
-    tty->print_cr("Counted Loop Limit Check generated:");
-    debug_only( bol->dump(2); )
+  if (ul_enabled(C, Trace, jit, looplimitcheck)) {
+    LogMessage(jit, looplimitcheck) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    st.print_cr("Counted Loop Limit Check generated:");
+    debug_only( bol->dump(2, &st); )
   }
 #endif
 }
@@ -1984,10 +1986,12 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
     if (!loop_limit_check_predicate_block->has_parse_predicate()) {
       // The Loop Limit Check Parse Predicate is not generated if this method trapped here before.
 #ifdef ASSERT
-      if (TraceLoopLimitCheck) {
-        tty->print("Missing Loop Limit Check Parse Predicate:");
-        loop->dump_head();
-        x->dump(1);
+      if (ul_enabled(C, Trace, jit, looplimitcheck)) {
+        LogMessage(jit, looplimitcheck) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        st.print("Missing Loop Limit Check Parse Predicate:");
+        loop->dump_head(&st);
+        x->dump(1, &st);
       }
 #endif
       return false;
@@ -2037,10 +2041,12 @@ bool PhaseIdealLoop::is_counted_loop(Node* x, IdealLoopTree*&loop, BasicType iv_
     if (!loop_limit_check_predicate_block->has_parse_predicate()) {
       // The Loop Limit Check Parse Predicate is not generated if this method trapped here before.
 #ifdef ASSERT
-      if (TraceLoopLimitCheck) {
-        tty->print("Missing Loop Limit Check Parse Predicate:");
-        loop->dump_head();
-        x->dump(1);
+      if (ul_enabled(C, Trace, jit, looplimitcheck)) {
+        LogMessage(jit, looplimitcheck) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        st.print("Missing Loop Limit Check Parse Predicate:");
+        loop->dump_head(&st);
+        x->dump(1, &st);
       }
 #endif
       return false;
