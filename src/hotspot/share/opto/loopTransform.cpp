@@ -3011,9 +3011,11 @@ void PhaseIdealLoop::do_range_check(IdealLoopTree *loop, Node_List &old_new) {
 
       assert(is_dominator(compute_early_ctrl(offset, offset_c), pre_end), "node pinned on loop exit test?");
 #ifdef ASSERT
-      if (TraceRangeLimitCheck) {
-        tty->print_cr("RC bool node%s", flip ? " flipped:" : ":");
-        bol->dump(2);
+      if (ul_enabled(C, Trace, jit, rangelimitcheck)) {
+        LogMessage(jit, rangelimitcheck) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        st.print_cr("RC bool node%s", flip ? " flipped:" : ":");
+        bol->dump(2, &st);
       }
 #endif
       // At this point we have the expression as:
