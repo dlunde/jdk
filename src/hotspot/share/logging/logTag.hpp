@@ -145,6 +145,7 @@ class outputStream;
   LOG_TAG(nmethod) \
   LOG_TAG(nmt) \
   LOG_TAG(normalize) \
+  LOG_TAG(nullcheckelimination) \
   LOG_TAG(numa) \
   LOG_TAG(objecttagging) \
   LOG_TAG(obsolete) \
