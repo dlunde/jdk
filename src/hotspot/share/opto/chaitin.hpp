@@ -517,6 +517,10 @@ private:
   // copies as needed.
   void de_ssa();
 
+#ifndef PRODUCT
+  void trace_cisc_spill_ul(const char* text, Node* n);
+#endif
+
   // Add edge between reg and everything in the vector.
   // Use the RegMask information to trim the set of interferences.  Return the
   // count of edges added.

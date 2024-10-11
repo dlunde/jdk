@@ -50,6 +50,7 @@ class outputStream;
   LOG_TAG(cause) \
   LOG_TAG(cds) \
   LOG_TAG(census) \
+  LOG_TAG(ciscspill) \
   LOG_TAG(class) \
   LOG_TAG(classhisto) \
   LOG_TAG(cleanup) \

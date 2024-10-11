@@ -254,10 +254,7 @@ int PhaseChaitin::split_USE(MachSpillCopyNode::SpillType spill_type, Node *def, 
     if( inp == (int)useidx ) {
       use->set_req(useidx, def);
 #ifndef PRODUCT
-      if( TraceCISCSpill ) {
-        tty->print("  set_split: ");
-        use->dump();
-      }
+      trace_cisc_spill_ul("  set_split: ", use);
 #endif
       return 0;
     }
