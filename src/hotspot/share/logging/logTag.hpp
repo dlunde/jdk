@@ -190,6 +190,7 @@ class outputStream;
   LOG_TAG(sealed) \
   LOG_TAG(setting) \
   LOG_TAG(smr) \
+  LOG_TAG(spilling) \
   LOG_TAG(stackbarrier) \
   LOG_TAG(stackmap) \
   LOG_TAG(stacktrace) \

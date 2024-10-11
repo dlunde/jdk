@@ -738,15 +738,17 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     }  // end for all spilling live ranges
     // DEBUG
 #ifndef PRODUCT
-    if(trace_spilling()) {
-      tty->print("/`\nBlock %d: ", b->_pre_order);
-      tty->print("Reaching Definitions after Phi handling\n");
-      for( uint x = 0; x < spill_cnt; x++ ) {
-        tty->print("Spill Idx %d: UP %d: Node\n",x,UPblock[x]);
-        if( Reachblock[x] )
-          Reachblock[x]->dump();
+    if (trace_spilling()) {
+      LogMessage(jit, spilling) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print("/`\nBlock %d: ", b->_pre_order);
+      st.print("Reaching Definitions after Phi handling\n");
+      for (uint x = 0; x < spill_cnt; x++) {
+        st.print("Spill Idx %d: UP %d: Node\n", x, UPblock[x]);
+        if (Reachblock[x])
+          Reachblock[x]->dump(&st);
         else
-          tty->print("Undefined\n");
+          st.print("Undefined\n");
       }
     }
 #endif
@@ -877,10 +879,12 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               UPblock[slidx] = false;
 #ifndef PRODUCT
               // DEBUG
-              if( trace_spilling() ) {
-                tty->print("\nNew Split DOWN DEF of Spill Idx ");
-                tty->print("%d, UP %d:\n",slidx,false);
-                n1->dump();
+              if (trace_spilling()) {
+                LogMessage(jit, spilling) msg;
+                NonInterleavingLogStream st(LogLevelType::Trace, msg);
+                st.print("\nNew Split DOWN DEF of Spill Idx ");
+                st.print("%d, UP %d:\n", slidx, false);
+                n1->dump(&st);
               }
 #endif
             }
@@ -1224,10 +1228,12 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           UPblock[slidx] = 0;
 #ifndef PRODUCT
           // DEBUG
-          if( trace_spilling() ) {
-            tty->print("\nNew Split DOWN DEF of Spill Idx ");
-            tty->print("%d, UP %d:\n",slidx,false);
-            n->dump();
+          if (trace_spilling()) {
+            LogMessage(jit, spilling) msg;
+            NonInterleavingLogStream st(LogLevelType::Trace, msg);
+            st.print("\nNew Split DOWN DEF of Spill Idx ");
+            st.print("%d, UP %d:\n", slidx, false);
+            n->dump(&st);
           }
 #endif
         }
@@ -1240,10 +1246,12 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           debug_defs[slidx] = defup ? nullptr : n;
 #ifndef PRODUCT
           // DEBUG
-          if( trace_spilling() ) {
-            tty->print("\nNew DEF of Spill Idx ");
-            tty->print("%d, UP %d:\n",slidx,defup);
-            n->dump();
+          if (trace_spilling()) {
+            LogMessage(jit, spilling) msg;
+            NonInterleavingLogStream st(LogLevelType::Trace, msg);
+            st.print("\nNew DEF of Spill Idx ");
+            st.print("%d, UP %d:\n", slidx, defup);
+            n->dump(&st);
           }
 #endif
         }  // End else LRP
@@ -1307,8 +1315,11 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       }
     }
 #ifndef PRODUCT
-    if( trace_spilling() )
-      b->dump();
+    if (trace_spilling()) {
+      LogMessage(jit, spilling) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      b->dump(&st);
+    }
 #endif
   }  // End For All Blocks
 

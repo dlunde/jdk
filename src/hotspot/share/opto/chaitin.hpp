@@ -793,10 +793,10 @@ private:
   void dump(const Block* b, outputStream* out = tty) const;
   void dump_degree_lists() const;
   void dump_simplified() const;
-  void dump_lrg(uint lidx, bool defs_only) const;
-  void dump_lrg(uint lidx) const {
+  void dump_lrg(uint lidx, bool defs_only, outputStream* out = tty) const;
+  void dump_lrg(uint lidx, outputStream* out = tty) const {
     // dump defs and uses by default
-    dump_lrg(lidx, false);
+    dump_lrg(lidx, false, out);
   }
   void dump_bb(uint pre_order) const;
   void dump_for_spill_split_recycle() const;

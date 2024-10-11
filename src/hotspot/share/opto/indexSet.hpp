@@ -326,7 +326,7 @@ class IndexSet : public ResourceObj {
 
 #ifndef PRODUCT
   // Output a IndexSet for debugging
-  void dump() const;
+  void dump(outputStream *out = tty) const;
 #endif
 
 #ifdef ASSERT

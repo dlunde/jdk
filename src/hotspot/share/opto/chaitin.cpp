@@ -217,7 +217,7 @@ PhaseChaitin::PhaseChaitin(uint unique, PhaseCFG &cfg, Matcher &matcher, bool sc
   , _lo_degree(0), _lo_stk_degree(0), _hi_degree(0), _simplified(0)
   , _oldphi(unique)
 #ifndef PRODUCT
-  , _trace_spilling(C->directive()->TraceSpillingOption)
+  , _trace_spilling(ul_enabled(C, Trace, jit, spilling))
 #endif
   , _lrg_map(Thread::current()->resource_area(), unique)
   , _scheduling_info_generated(scheduling_info_generated)
@@ -1532,10 +1532,11 @@ uint PhaseChaitin::Select( ) {
 
 #ifndef PRODUCT
     if (trace_spilling()) {
-      ttyLocker ttyl;
-      tty->print_cr("L%d selecting degree %d degrees_of_freedom %d", lidx, lrg->degree(),
-                    lrg->degrees_of_freedom());
-      lrg->dump();
+      LogMessage(jit, spilling) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
+      st.print_cr("L%d selecting degree %d degrees_of_freedom %d", lidx, lrg->degree(),
+                  lrg->degrees_of_freedom());
+      lrg->dump(&st);
     }
 #endif
 
@@ -1578,17 +1579,18 @@ uint PhaseChaitin::Select( ) {
           lrg->SUBTRACT(nlrg.mask());
 #ifndef PRODUCT
           if (trace_spilling() && lrg->mask().Size() != size) {
-            ttyLocker ttyl;
-            tty->print("L%d ", lidx);
-            rm.dump();
-            tty->print(" intersected L%d ", neighbor);
-            nlrg.mask().dump();
-            tty->print(" removed ");
+            LogMessage(jit, spilling) msg;
+            NonInterleavingLogStream st(LogLevelType::Trace, msg);
+            st.print("L%d ", lidx);
+            rm.dump(&st);
+            st.print(" intersected L%d ", neighbor);
+            nlrg.mask().dump(&st);
+            st.print(" removed ");
             rm.SUBTRACT(lrg->mask());
-            rm.dump();
-            tty->print(" leaving ");
-            lrg->mask().dump();
-            tty->cr();
+            rm.dump(&st);
+            st.print(" leaving ");
+            lrg->mask().dump(&st);
+            st.cr();
           }
 #endif
         }
@@ -1656,12 +1658,13 @@ uint PhaseChaitin::Select( ) {
       }
 #ifndef PRODUCT
       if (trace_spilling()) {
-        ttyLocker ttyl;
-        tty->print("L%d selected ", lidx);
-        lrg->mask().dump();
-        tty->print(" from ");
-        avail_rm.dump();
-        tty->cr();
+        LogMessage(jit, spilling) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        st.print("L%d selected ", lidx);
+        lrg->mask().dump(&st);
+        st.print(" from ");
+        avail_rm.dump(&st);
+        st.cr();
       }
 #endif
       // Note that reg is the highest-numbered register in the newly-bound mask.
@@ -1680,13 +1683,14 @@ uint PhaseChaitin::Select( ) {
       // Do not empty the regmask; leave mask_size lying around
       // for use during Spilling
 #ifndef PRODUCT
-      if( trace_spilling() ) {
-        ttyLocker ttyl;
-        tty->print("L%d spilling with neighbors: ", lidx);
-        s->dump();
-        debug_only(tty->print(" original mask: "));
-        debug_only(orig_mask.dump());
-        dump_lrg(lidx);
+      if (trace_spilling()) {
+        LogMessage(jit, spilling) msg;
+        NonInterleavingLogStream st(LogLevelType::Trace, msg);
+        st.print("L%d spilling with neighbors: ", lidx);
+        s->dump(&st);
+        debug_only(st.print(" original mask: "));
+        debug_only(orig_mask.dump(&st));
+        dump_lrg(lidx, &st);
       }
 #endif
     } // end spill case
@@ -2419,25 +2423,25 @@ void PhaseChaitin::dump_bb(uint pre_order) const {
   }
 }
 
-void PhaseChaitin::dump_lrg(uint lidx, bool defs_only) const {
-  tty->print_cr("---dump of L%d---",lidx);
+void PhaseChaitin::dump_lrg(uint lidx, bool defs_only, outputStream* out) const {
+  out->print_cr("---dump of L%d---",lidx);
 
   if (_ifg) {
     if (lidx >= _lrg_map.max_lrg_id()) {
-      tty->print("Attempt to print live range index beyond max live range.\n");
+      out->print("Attempt to print live range index beyond max live range.\n");
       return;
     }
-    tty->print("L%d: ",lidx);
+    out->print("L%d: ",lidx);
     if (lidx < _ifg->_maxlrg) {
-      lrgs(lidx).dump();
+      lrgs(lidx).dump(out);
     } else {
-      tty->print_cr("new LRG");
+      out->print_cr("new LRG");
     }
   }
-  if( _ifg && lidx < _ifg->_maxlrg) {
-    tty->print("Neighbors: %d - ", _ifg->neighbor_cnt(lidx));
-    _ifg->neighbors(lidx)->dump();
-    tty->cr();
+  if (_ifg && lidx < _ifg->_maxlrg) {
+    out->print("Neighbors: %d - ", _ifg->neighbor_cnt(lidx));
+    _ifg->neighbors(lidx)->dump(out);
+    out->cr();
   }
   // For all blocks
   for (uint i = 0; i < _cfg.number_of_blocks(); i++) {
@@ -2445,35 +2449,35 @@ void PhaseChaitin::dump_lrg(uint lidx, bool defs_only) const {
     int dump_once = 0;
 
     // For all instructions
-    for( uint j = 0; j < block->number_of_nodes(); j++ ) {
+    for (uint j = 0; j < block->number_of_nodes(); j++) {
       Node *n = block->get_node(j);
       if (_lrg_map.find_const(n) == lidx) {
         if (!dump_once++) {
-          tty->cr();
-          block->dump_head(&_cfg);
+          out->cr();
+          block->dump_head(&_cfg, out);
         }
-        dump(n);
+        dump(n, out);
         continue;
       }
       if (!defs_only) {
         uint cnt = n->req();
-        for( uint k = 1; k < cnt; k++ ) {
+        for (uint k = 1; k < cnt; k++) {
           Node *m = n->in(k);
-          if (!m)  {
+          if (!m) {
             continue;  // be robust in the dumper
           }
           if (_lrg_map.find_const(m) == lidx) {
             if (!dump_once++) {
-              tty->cr();
-              block->dump_head(&_cfg);
+              out->cr();
+              block->dump_head(&_cfg, out);
             }
-            dump(n);
+            dump(n, out);
           }
         }
       }
     }
   } // End of per-block dump
-  tty->cr();
+  out->cr();
 }
 #endif // not PRODUCT
 
