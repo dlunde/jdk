@@ -22,6 +22,7 @@
  *
  */
 
+#include "logging/logStream.hpp"
 #include "precompiled.hpp"
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/c2/barrierSetC2.hpp"
@@ -2235,20 +2236,25 @@ void PhasePeephole::do_transform() {
           int result = m->peephole(block, instruction_index, &_cfg, _regalloc);
           if( result != -1 ) {
 #ifndef PRODUCT
-            if( PrintOptoPeephole ) {
+            if (ul_enabled(C, Debug, jit, optopeephole)) {
+              LogMessage(jit, optopeephole) msg;
+              NonInterleavingLogStream st(LogLevelType::Debug, msg);
               // Print method, first time only
-              if( C->method() && method_name_not_printed ) {
-                C->method()->print_short_name(); tty->cr();
+              if (C->method() && method_name_not_printed) {
+                C->method()->print_short_name(&st);
+                st.cr();
                 method_name_not_printed = false;
               }
               // Print this block
-              if( Verbose && block_not_printed) {
-                tty->print_cr("in block");
-                block->dump();
+              if (ul_enabled(C, Trace, jit, optopeephole) && block_not_printed) {
+                stringStream ss;
+                ss.print_cr("in block");
+                block->dump(&ss);
                 block_not_printed = false;
+                msg.trace("%s", ss.freeze());
               }
               // Print the peephole number
-              tty->print_cr("peephole number: %d", result);
+              st.print_cr("peephole number: %d", result);
             }
             inc_peepholes();
 #endif
