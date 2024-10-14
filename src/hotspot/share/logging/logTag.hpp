@@ -211,6 +211,7 @@ class outputStream;
   LOG_TAG(stringtable) \
   LOG_TAG(stubs) \
   LOG_TAG(subclass) \
+  LOG_TAG(superwordloopunrollanalysis) \
   LOG_TAG(survivor) \
   LOG_TAG(suspend) \
   LOG_TAG(sweep) \

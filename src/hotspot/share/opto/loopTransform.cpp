@@ -1107,9 +1107,9 @@ bool IdealLoopTree::policy_unroll(PhaseIdealLoop *phase) {
   }
 
   if (cl->is_unroll_only()) {
-    if (TraceSuperWordLoopUnrollAnalysis) {
-      tty->print_cr("policy_unroll passed vector loop(vlen=%d, factor=%d)\n",
-                    slp_max_unroll_factor, future_unroll_cnt);
+    if (ul_enabled(phase->C, Trace, jit, superwordloopunrollanalysis)) {
+      log_trace(jit, superwordloopunrollanalysis)("policy_unroll passed vector loop(vlen=%d, factor=%d)\n",
+                                                  slp_max_unroll_factor, future_unroll_cnt);
     }
   }
 
@@ -1138,8 +1138,9 @@ void IdealLoopTree::policy_unroll_slp_analysis(CountedLoopNode *cl, PhaseIdealLo
       if (slp_max_unroll_factor >= future_unroll_cnt) {
         int new_limit = cl->node_count_before_unroll() * slp_max_unroll_factor;
         if (new_limit > LoopUnrollLimit) {
-          if (TraceSuperWordLoopUnrollAnalysis) {
-            tty->print_cr("slp analysis unroll=%d, default limit=%d\n", new_limit, _local_loop_unroll_limit);
+          if (ul_enabled(phase->C, Trace, jit, superwordloopunrollanalysis)) {
+            log_trace(jit, superwordloopunrollanalysis)("slp analysis unroll=%d, default limit=%d\n",
+                                                        new_limit, _local_loop_unroll_limit);
           }
           _local_loop_unroll_limit = new_limit;
         }
