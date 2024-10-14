@@ -25,6 +25,7 @@
 #ifndef SHARE_OPTO_ESCAPE_HPP
 #define SHARE_OPTO_ESCAPE_HPP
 
+#include "logging/logStream.hpp"
 #include "opto/addnode.hpp"
 #include "opto/node.hpp"
 #include "utilities/growableArray.hpp"
@@ -614,10 +615,12 @@ private:
 
   void set_not_scalar_replaceable(PointsToNode* ptn NOT_PRODUCT(COMMA const char* reason)) const {
 #ifndef PRODUCT
-    if (_compile->directive()->TraceEscapeAnalysisOption) {
+    if (ul_enabled(_compile, Trace, jit, escapeanalysis)) {
+      LogMessage(jit, escapeanalysis) msg;
+      NonInterleavingLogStream st(LogLevelType::Trace, msg);
       assert(ptn != nullptr, "should not be null");
-      ptn->dump_header(true);
-      tty->print_cr("is NSR. %s", reason);
+      ptn->dump_header(true, &st);
+      st.print_cr("is NSR. %s", reason);
     }
 #endif
     ptn->set_scalar_replaceable(false);
@@ -681,7 +684,7 @@ public:
   static int _no_escape_counter;
   static int _arg_escape_counter;
   static int _global_escape_counter;
-  void dump(GrowableArray<PointsToNode*>& ptnodes_worklist);
+  void dump(GrowableArray<PointsToNode*>& ptnodes_worklist, outputStream* out = tty);
   static void print_statistics();
   void escape_state_statistics(GrowableArray<JavaObjectNode*>& java_objects_worklist);
 #endif
