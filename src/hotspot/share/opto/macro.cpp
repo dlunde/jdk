@@ -663,23 +663,25 @@ bool PhaseMacroExpand::can_eliminate_allocation(PhaseIterGVN* igvn, AllocateNode
   }
 
 #ifndef PRODUCT
-  if (PrintEliminateAllocations && safepoints != nullptr) {
+  if (ul_enabled(igvn->C, Debug, jit, eliminateallocations) && safepoints != nullptr) {
+    LogMessage(jit, eliminateallocations) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
     if (can_eliminate) {
-      tty->print("Scalar ");
+      st.print("Scalar ");
       if (res == nullptr)
-        alloc->dump();
+        alloc->dump(&st);
       else
-        res->dump();
+        res->dump(&st);
     } else if (alloc->_is_scalar_replaceable) {
-      tty->print("NotScalar (%s)", fail_eliminate);
+      st.print("NotScalar (%s)", fail_eliminate);
       if (res == nullptr)
-        alloc->dump();
+        alloc->dump(&st);
       else
-        res->dump();
+        res->dump(&st);
 #ifdef ASSERT
       if (disq_node != nullptr) {
-          tty->print("  >>>> ");
-          disq_node->dump();
+          st.print("  >>>> ");
+          disq_node->dump(&st);
       }
 #endif /*ASSERT*/
     }
@@ -827,20 +829,22 @@ SafePointScalarObjectNode* PhaseMacroExpand::create_scalarized_object_descriptio
       _igvn._worklist.push(sfpt);
 
 #ifndef PRODUCT
-      if (PrintEliminateAllocations) {
+      if (ul_enabled(C, Debug, jit, eliminateallocations)) {
+        LogMessage(jit, eliminateallocations) msg;
+        NonInterleavingLogStream st(LogLevelType::Debug, msg);
         if (field != nullptr) {
-          tty->print("=== At SafePoint node %d can't find value of field: ", sfpt->_idx);
-          field->print();
+          st.print("=== At SafePoint node %d can't find value of field: ", sfpt->_idx);
+          field->print(&st);
           int field_idx = C->get_alias_index(field_addr_type);
-          tty->print(" (alias_idx=%d)", field_idx);
+          st.print(" (alias_idx=%d)", field_idx);
         } else { // Array's element
-          tty->print("=== At SafePoint node %d can't find value of array element [%d]", sfpt->_idx, j);
+          st.print("=== At SafePoint node %d can't find value of array element [%d]", sfpt->_idx, j);
         }
-        tty->print(", which prevents elimination of: ");
+        st.print(", which prevents elimination of: ");
         if (res == nullptr)
-          alloc->dump();
+          alloc->dump(&st);
         else
-          res->dump();
+          res->dump(&st);
       }
 #endif
 
@@ -1109,11 +1113,11 @@ bool PhaseMacroExpand::eliminate_allocate_node(AllocateNode *alloc) {
   process_users_of_allocation(alloc);
 
 #ifndef PRODUCT
-  if (PrintEliminateAllocations) {
+  if (ul_enabled(C, Debug, jit, eliminateallocations)) {
     if (alloc->is_AllocateArray())
-      tty->print_cr("++++ Eliminated: %d AllocateArray", alloc->_idx);
+      log_debug(jit, eliminateallocations)("++++ Eliminated: %d AllocateArray", alloc->_idx);
     else
-      tty->print_cr("++++ Eliminated: %d Allocate", alloc->_idx);
+      log_debug(jit, eliminateallocations)("++++ Eliminated: %d Allocate", alloc->_idx);
   }
 #endif
 
@@ -1150,10 +1154,12 @@ bool PhaseMacroExpand::eliminate_boxing_node(CallStaticJavaNode *boxing) {
   process_users_of_allocation(boxing);
 
 #ifndef PRODUCT
-  if (PrintEliminateAllocations) {
-    tty->print("++++ Eliminated: %d ", boxing->_idx);
-    boxing->method()->print_short_name(tty);
-    tty->cr();
+  if (ul_enabled(C, Debug, jit, eliminateallocations)) {
+    LogMessage(jit, eliminateallocations) msg;
+    NonInterleavingLogStream st(LogLevelType::Debug, msg);
+    st.print("++++ Eliminated: %d ", boxing->_idx);
+    boxing->method()->print_short_name(&st);
+    st.cr();
   }
 #endif
 
@@ -1287,13 +1293,15 @@ void PhaseMacroExpand::expand_allocate_common(
       // Size is a non-negative constant -> no initial check needed -> directly to fast path.
       // Also, no usages -> empty fast path -> no fall out to slow path -> nothing left.
 #ifndef PRODUCT
-      if (PrintEliminateAllocations) {
-        tty->print("NotUsed ");
+      if (ul_enabled(C, Debug, jit, eliminateallocations)) {
+        LogMessage(jit, eliminateallocations) msg;
+        NonInterleavingLogStream st(LogLevelType::Debug, msg);
+        st.print("NotUsed ");
         Node* res = alloc->proj_out_or_null(TypeFunc::Parms);
         if (res != nullptr) {
-          res->dump();
+          res->dump(&st);
         } else {
-          alloc->dump();
+          alloc->dump(&st);
         }
       }
 #endif
@@ -1578,11 +1586,11 @@ void PhaseMacroExpand::yank_alloc_node(AllocateNode* alloc) {
     _callprojs.catchall_ioproj->set_req(0, top());
   }
 #ifndef PRODUCT
-  if (PrintEliminateAllocations) {
+  if (ul_enabled(C, Debug, jit, eliminateallocations)) {
     if (alloc->is_AllocateArray()) {
-      tty->print_cr("++++ Eliminated: %d AllocateArray", alloc->_idx);
+      log_debug(jit, eliminateallocations)("++++ Eliminated: %d AllocateArray", alloc->_idx);
     } else {
-      tty->print_cr("++++ Eliminated: %d Allocate", alloc->_idx);
+      log_debug(jit, eliminateallocations)("++++ Eliminated: %d Allocate", alloc->_idx);
     }
   }
 #endif
