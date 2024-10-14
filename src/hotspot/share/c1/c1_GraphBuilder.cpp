@@ -3453,7 +3453,11 @@ GraphBuilder::GraphBuilder(Compilation* compilation, IRScope* scope)
 
   eliminate_redundant_phis(_start);
 
-  NOT_PRODUCT(if (PrintValueNumbering && Verbose) print_stats());
+  NOT_PRODUCT(if (ul_enabled(compilation, Trace, jit, valuenumbering)) {
+    LogMessage(jit, valuenumbering) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    print_stats(&st);
+  })
   // for osr compile, bailout if some requirements are not fulfilled
   if (osr_bci != -1) {
     BlockBegin* osr_block = blm.bci2block()->at(osr_bci);
@@ -4517,9 +4521,9 @@ void GraphBuilder::append_unsafe_get_and_set(ciMethod* callee, bool is_add) {
 }
 
 #ifndef PRODUCT
-void GraphBuilder::print_stats() {
+void GraphBuilder::print_stats(outputStream* out) {
   if (UseLocalValueNumbering) {
-    vmap()->print();
+    vmap()->print(out);
   }
 }
 #endif // PRODUCT

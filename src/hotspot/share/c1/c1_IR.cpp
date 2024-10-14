@@ -22,6 +22,7 @@
  *
  */
 
+#include "logging/logStream.hpp"
 #include "precompiled.hpp"
 #include "c1/c1_Compilation.hpp"
 #include "c1/c1_FrameMap.hpp"
@@ -126,7 +127,11 @@ bool XHandler::equals(XHandler* other) const {
 // Implementation of IRScope
 BlockBegin* IRScope::build_graph(Compilation* compilation, int osr_bci) {
   GraphBuilder gm(compilation, this);
-  NOT_PRODUCT(if (PrintValueNumbering && Verbose) gm.print_stats());
+  NOT_PRODUCT(if (ul_enabled(compilation, Trace, jit, valuenumbering)) {
+    LogMessage(jit, valuenumbering) msg;
+    NonInterleavingLogStream st(LogLevelType::Trace, msg);
+    gm.print_stats(&st);  
+  })
   if (compilation->bailed_out()) return nullptr;
   return gm.start();
 }
