@@ -50,8 +50,6 @@ void LRG::dump() const {
   dump_on(tty);
 }
 
-
-
 void LRG::dump_on(outputStream* out) const {
   out->print("%d ", num_regs());
   _mask.dump(out);
