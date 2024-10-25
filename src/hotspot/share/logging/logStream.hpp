@@ -29,6 +29,7 @@
 #include "logging/logHandle.hpp"
 #include "logging/logMessage.hpp"
 #include "utilities/ostream.hpp"
+#include "logging/logConfiguration.hpp"
 
 class LogStreamImplBase : public outputStream {
   friend class LogStreamTest_TestLineBufferAllocation_vm_Test;
@@ -68,7 +69,7 @@ protected:
 
 template <typename BackingLog>
 class LogStreamImpl : public LogStreamImplBase {
-private:
+protected:
   BackingLog _backing_log;
 
 public:
@@ -156,12 +157,18 @@ public:
     }
     va_end(args);
   }
+
+  void flush()  {
+    _lm.flush();
+  }
 };
 
 class NonInterleavingLogStream : public LogStreamImpl<LogMessageHandle> {
 public:
   NonInterleavingLogStream(LogLevelType level, LogMessageImpl& lm)
     : LogStreamImpl(LogMessageHandle(level, lm)) {}
+
+  void write(const char* s, size_t len) override;
 };
 
 #endif // SHARE_LOGGING_LOGSTREAM_HPP

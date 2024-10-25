@@ -128,3 +128,9 @@ void LogStreamImpl<BackingLog>::write(const char* s, size_t len) {
 
 template class LogStreamImpl<LogTargetHandle>;
 template class LogStreamImpl<LogMessageHandle>;
+
+void NonInterleavingLogStream::write(const char *s, size_t len) {
+  LogStreamImpl<LogMessageHandle>::write(s, len);
+  if (LogConfiguration::is_eager_mode())
+    _backing_log.flush();
+}

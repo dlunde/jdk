@@ -717,3 +717,4 @@ void LogConfiguration::notify_update_listeners() {
 }
 
 bool LogConfiguration::_async_mode = false;
+bool LogConfiguration::_eager_mode = false;
