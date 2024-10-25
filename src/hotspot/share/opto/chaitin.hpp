@@ -222,7 +222,8 @@ public:
   bool is_singledef() const { return _def != NodeSentinel; }
 
 #ifndef PRODUCT
-  void dump(outputStream* out = tty) const;
+  void dump() const;
+  void dump_on(outputStream* out) const;
 #endif
 };
 

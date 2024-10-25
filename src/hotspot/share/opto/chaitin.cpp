@@ -45,8 +45,14 @@
 #include "logging/logStream.hpp"
 
 #ifndef PRODUCT
-void LRG::dump(outputStream* out) const {
-  ttyLocker ttyl; // We'll have to think about this (OPT)
+void LRG::dump() const {
+  ttyLocker ttyl;
+  dump_on(tty);
+}
+
+
+
+void LRG::dump_on(outputStream* out) const {
   out->print("%d ", num_regs());
   _mask.dump(out);
   if (_msize_valid) {
@@ -1545,7 +1551,7 @@ uint PhaseChaitin::Select( ) {
       NonInterleavingLogStream st(LogLevelType::Trace, msg);
       st.print_cr("L%d selecting degree %d degrees_of_freedom %d", lidx, lrg->degree(),
                   lrg->degrees_of_freedom());
-      lrg->dump(&st);
+      lrg->dump_on(&st);
     }
 #endif
 
@@ -2181,7 +2187,7 @@ void PhaseChaitin::dump(outputStream* out) const {
   for (uint i2 = 1; i2 < _lrg_map.max_lrg_id(); i2++) {
     out->print("L%d: ", i2);
     if (i2 < _ifg->_maxlrg) {
-      lrgs(i2).dump(out);
+      lrgs(i2).dump_on(out);
     }
     else {
       out->print_cr("new LRG");
@@ -2300,7 +2306,7 @@ void PhaseChaitin::dump_for_spill_split_recycle() const {
     for (uint bidx = 1; bidx < _lrg_map.max_lrg_id(); bidx++) {
       if (lrgs(bidx).alive() && lrgs(bidx).reg() >= LRG::SPILL_REG) {
         st.print("L%d: ", bidx);
-        lrgs(bidx).dump(&st);
+        lrgs(bidx).dump_on(&st);
       }
     }
     st.cr();
@@ -2433,7 +2439,7 @@ void PhaseChaitin::dump_lrg(uint lidx, bool defs_only, outputStream* out) const 
     }
     out->print("L%d: ",lidx);
     if (lidx < _ifg->_maxlrg) {
-      lrgs(lidx).dump(out);
+      lrgs(lidx).dump_on(out);
     } else {
       out->print_cr("new LRG");
     }
