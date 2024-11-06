@@ -746,7 +746,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     Block* store_block = get_block_for_node(store);
     assert(store_block != nullptr, "unused killing projections skipped above");
 
-    if (store_block != early && store_block->dominates(early)) {
+    if (UseNewCode && store_block != early && store_block->dominates(early)) {
       // It can occur that store_block strictly dominates the
       // earliest possible block. We have to
       //   (1) bring LCA all the way up to the earliest block, and
