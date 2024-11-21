@@ -2241,6 +2241,35 @@ void PhaseIdealLoop::clone_loop_handle_data_uses(Node* old, Node_List &old_new,
       // is now merged with the peeled body exit; each exit gets its own
       // private Phi and those Phis need to be merged here.
       Node *phi;
+      // TODO Can I, if old is Mem, just set old to a merged memory version?
+      if (old->bottom_type() == Type::MEMORY) {
+        ResourceMark rm;
+        VectorSet visited;
+        Node_List worklist;
+        worklist.push(old);
+        int leaves = 0;
+        while(worklist.size()) {
+          Node *mem = worklist.pop();
+          int children = 0;
+          for (DUIterator_Fast imax, i = mem->fast_outs(imax); i < imax; i++) {
+            Node* n = mem->fast_out(i);
+            if (n->is_MergeMem()) {
+              children++;
+              if (!visited.test(n->_idx)) {
+                worklist.push(n);
+              }
+            }
+          }
+          visited.set(mem->_idx);
+          if (children == 0) {
+            leaves++;
+          }
+        }
+        if (leaves > 1) {
+          tty->print("Multiple leaves for: ");
+          old->dump();
+        }
+      }
       if( prev->is_Region() ) {
         if( idx == 0 ) {      // Updating control edge?
           phi = prev;         // Just use existing control
