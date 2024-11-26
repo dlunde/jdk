@@ -77,3 +77,36 @@ bool VectorSet::is_empty() const {
   }
   return true;
 }
+
+bool VectorSet::operator==(const VectorSet& rhs) const {
+  if (_size != rhs._size) {
+    return false;
+  }
+  for (uint32_t i = 0; i < MAX2(_size, rhs._size); i++) {
+    if ((i >= _size && rhs._data[i] != 0) ||
+        (i >= rhs._size && _data[i] != 0) ||
+        (_data[i] != rhs._data[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void VectorSet::dump() const {
+  uint i = 0;
+  bool found_first = false;
+  while(true) {
+    if (test(i)) {
+      if (found_first) {
+        tty->print(", %u", i);
+      } else {
+        tty->print("%u", i);
+        found_first = true;
+      }
+    }
+    if ((i+1) >> word_bits >= _size) {
+      break;
+    }
+    ++i;
+  }
+}

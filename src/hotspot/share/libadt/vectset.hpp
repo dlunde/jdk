@@ -118,6 +118,10 @@ public:
     uint32_t mask = 1U << (elem & bit_mask);
     _data[word] |= mask;
   }
+
+  bool operator==(const VectorSet& rhs) const;
+
+  void dump() const;
 };
 
 #endif // SHARE_LIBADT_VECTSET_HPP

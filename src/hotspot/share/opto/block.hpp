@@ -493,7 +493,7 @@ class PhaseCFG : public Phase {
   MachNode* _goto;
 
   bool needs_anti_dependence_edge(Node* load, Node* store, int load_alias_idx);
-  Block* insert_anti_dependences_new(Node* initial_mem, int load_alias_idx, Node* load, Block* early, node_idx_t load_index, Block* LCA_orig, Block* LCA, bool verify);
+  Block* insert_anti_dependences_new(Block* LCA, Node* load, VectorSet& anti_dependences, bool verify = false);
   Block* insert_anti_dependences(Block* LCA, Node* load, bool verify = false);
   void verify_anti_dependences(Block* LCA, Node* load) const {
     assert(LCA == get_block_for_node(load), "should already be scheduled");
