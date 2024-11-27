@@ -1100,7 +1100,10 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
   VectorSet anti_dependences;
   VectorSet LCA_marks;
   VectorSet LCA_marks_new;
-  Block* LCA_new = insert_anti_dependences_new(LCA, load, anti_dependences_new, LCA_marks_new, verify);
+  Block* LCA_new = nullptr;
+  if (UseNewCode || UseNewCode2) {
+    LCA_new = insert_anti_dependences_new(LCA, load, anti_dependences_new, LCA_marks_new, verify);
+  }
   if (UseNewCode2) {
     return LCA_new;
   }
