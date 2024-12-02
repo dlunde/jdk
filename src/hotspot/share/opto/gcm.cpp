@@ -1254,10 +1254,17 @@ bool PhaseCFG::is_cheaper_block(Block* LCA, Node* self, uint target_latency,
 
   const double delta = 1 + PROB_UNLIKELY_MAG(4);
 
-  // Better Frequency. Add a small delta to the comparison to not needlessly
-  // hoist because of, e.g., small numerical inaccuracies.
-  if (LCA->_freq * delta < least_freq) {
-    return true;
+  if (UseNewCode) {
+    // Better Frequency. Add a small delta to the comparison to not needlessly
+    // hoist because of, e.g., small numerical inaccuracies.
+    if (LCA->_freq * delta < least_freq) {
+      return true;
+    }
+  } else {
+    // Better Frequency
+    if (LCA->_freq < least_freq) {
+      return true;
+    }
   }
 
   // Otherwise, choose with latency
