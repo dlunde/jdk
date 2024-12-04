@@ -494,6 +494,7 @@ class PhaseCFG : public Phase {
 
   bool needs_anti_dependence_edge(Node* load, Node* store, int load_alias_idx);
   Block* insert_anti_dependences_new(Block* LCA, Node* load, VectorSet& anti_dependences, VectorSet& LCA_marks_new, bool verify = false);
+  Block* insert_anti_dependences_new2(Block* LCA, Node* load, VectorSet& anti_dependences, VectorSet& LCA_marks_new, bool verify = false);
   Block* insert_anti_dependences(Block* LCA, Node* load, bool verify = false);
   void verify_anti_dependences(Block* LCA, Node* load) const {
     assert(LCA == get_block_for_node(load), "should already be scheduled");
