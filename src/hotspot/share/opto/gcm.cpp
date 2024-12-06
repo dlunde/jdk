@@ -887,7 +887,6 @@ Block* PhaseCFG::insert_anti_dependences_new(Block* LCA, Node* load, VectorSet& 
       }
     }
   }
-  tty->print("New: "); initial_mems.dump_simple(); tty->cr();
 
   // 2. Walk downwards from the initial memory states and record potential
   // interfering memory state definitions.
@@ -989,9 +988,6 @@ Block* PhaseCFG::insert_anti_dependences_new(Block* LCA, Node* load, VectorSet& 
     }
 
     if (use_mem_state->is_Phi()) {
-
-      // If we broke through this Phi, ignore.
-      if (visited.test(use_mem_state->_idx)) { continue; }
 
       // Loop-phis need to raise load before input. (Other phis are treated
       // as store below.)
@@ -1245,7 +1241,6 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, VectorSet&
       initial_mems.push(n);
     }
   }
-  tty->print("New2: "); initial_mems.dump_simple(); tty->cr();
 
   // 2. Walk downwards from the initial memory states and record potential
   // interfering memory state definitions.
