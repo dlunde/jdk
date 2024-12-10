@@ -717,7 +717,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
 
   // 1. Starting at the direct initial memory, walk upwards through Phis to
   // collect the full set of possible initial memory states. Use
-  // Unique_Node_List to avoid combinatorial issues.
+  // Unique_Node_List to avoid combinatorial issues later on (in step 2).
   Unique_Node_List worklist(area);
   VectorSet initial_mems(area);
   worklist.push(initial_mem);
@@ -812,7 +812,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       }
 
       // Optimization: We have visited this use already from the current def.
-      // Important for Phis where we do not set visited immediately.
+      // Mainly useful to not repeat use Phis.
       if (visited_uses.test_set(use_mem_state->_idx)) {
         continue;
       }
@@ -837,7 +837,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
         worklist.push(use_mem_state);
       } else {
         // We allow phis to be repeated; they can merge two relevant states.
-        // Only set visited for other stores.
+        // Only set visited for non-Phi memory uses.
         visited.set(use_mem_state->_idx);
       }
 
