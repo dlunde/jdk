@@ -718,22 +718,19 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
   // 1. Starting at the direct initial memory, walk upwards through Phis to
   // collect the full set of possible initial memory states. Use
   // Unique_Node_List to avoid combinatorial issues.
-  Unique_Node_List initial_mems(area);
-  Unique_Node_List worklist_up(area);
-  worklist_up.push(initial_mem);
-  VectorSet visited_up(area);
-  while (worklist_up.size() > 0) {
-    Node* n = worklist_up.pop();
-    assert(!visited_up.test(n->_idx), "worklist_up nodes are always unvisited");
-    visited_up.set(n->_idx);
+  Unique_Node_List worklist(area);
+  VectorSet initial_mems(area);
+  worklist.push(initial_mem);
+  initial_mems.set(initial_mem->_idx);
+  for (uint i = 0; i < worklist.size(); i++) {
+    Node* n = worklist.at(i);
 
     if (n->is_Phi()) {
       for (uint i = PhiNode::Input, imax = n->req(); i < imax; i++) {
         Node* m = n->in(i);
-        if (visited_up.test(m->_idx)) {
-          continue;
+        if (!initial_mems.test_set(m->_idx)) {
+          worklist.push(m);
         }
-        worklist_up.push(m);
       }
     } else if (n->is_MergeMem() && load_alias_idx >= Compile::AliasIdxRaw) {
       // We don't optimize the memory graph for pinned loads, so we may need to
@@ -742,24 +739,19 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // creates the memory state for this slice.
       MergeMemNode* mm = n->as_MergeMem();
       Node* p = mm->memory_at(load_alias_idx);
-      if (p != mm->base_memory() && !visited_up.test(p->_idx)) {
-        worklist_up.push(p);
-        continue;
+      if (p != mm->base_memory() && !initial_mems.test_set(p->_idx)) {
+        worklist.push(p);
       }
     }
-    initial_mems.push(n);
   }
 
   // 2. Walk down from the initial memory states and administer potential
   // interfering memory state definitions.
-  VectorSet visited_down(area);
+  VectorSet visited(area);
   VectorSet visited_uses(area);
-  Unique_Node_List& worklist = initial_mems;
   while (worklist.size() > 0) {
     Node* def_mem_state = worklist.pop();
-    if (visited_down.test(def_mem_state->_idx)) {
-      continue;
-    }
+    assert(!visited.test(def_mem_state->_idx), "invariant");
 
     // There are Phi memory nodes for which initial memory is live on _all_
     // inputs. For such Phis, it is not enough to raise the LCA above relevant
@@ -785,12 +777,12 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     // them.
     if (def_mem_state->is_Phi() &&
         // We always continue through initial memory Phis
-        !visited_up.test(def_mem_state->_idx)) {
+        !initial_mems.test(def_mem_state->_idx)) {
       assert(def_mem_state->is_memory_phi(), "sanity");
       bool breakthrough = true;
       for (uint i = PhiNode::Input, imax = def_mem_state->req(); i < imax; i++) {
         Node* in = def_mem_state->in(i);
-        if (!visited_down.test(in->_idx)) {
+        if (!visited.test(in->_idx)) {
           // We have at least one unknown Phi input and can therefore not break
           // through the Phi.
           breakthrough = false;
@@ -804,18 +796,23 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
 
     // We now visit all children use_mem_state of def_mem_state and consider if
     // they may warrant an anti-dependence edge or further anti-dependence search.
-    visited_down.set(def_mem_state->_idx);
+    visited.set(def_mem_state->_idx);
     visited_uses.reset();
     for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
       Node* use_mem_state = def_mem_state->fast_out(i);
 
+      // Initial memory is never a use.
+      if (initial_mems.test(use_mem_state->_idx)) {
+        continue;
+      }
+
       // Optimization: We have visited the use already.
-      if (visited_down.test(use_mem_state->_idx)) {
+      if (visited.test(use_mem_state->_idx)) {
         continue;
       }
 
       // Optimization: We have visited this use already from the current def.
-      // Important for Phis where we do not set visited_down immediately.
+      // Important for Phis where we do not set visited immediately.
       if (visited_uses.test_set(use_mem_state->_idx)) {
         continue;
       }
@@ -830,7 +827,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // A node that does not require an anti-dependence edge and also
       // stops the anti-dependence search.
       if (!needs_anti_dependence_edge(load, use_mem_state, load_alias_idx)) {
-        visited_down.set(use_mem_state->_idx);
+        visited.set(use_mem_state->_idx);
         continue;
       }
 
@@ -841,7 +838,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       } else {
         // We allow phis to be repeated; they can merge two relevant states.
         // Only set visited for other stores.
-        visited_down.set(use_mem_state->_idx);
+        visited.set(use_mem_state->_idx);
       }
 
       // We are now at a use_mem_state that may require an anti-dependence
