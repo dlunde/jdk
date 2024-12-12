@@ -718,18 +718,16 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
   // 1. Starting at the direct initial memory, walk upwards through Phis to
   // collect the full set of possible initial memory states. Use
   // Unique_Node_List to avoid combinatorial issues later on (in step 2).
-  Unique_Node_List worklist(area);
-  VectorSet initial_mems(area);
-  worklist.push(initial_mem);
-  initial_mems.set(initial_mem->_idx);
-  for (uint i = 0; i < worklist.size(); i++) {
-    Node* n = worklist.at(i);
+  Node_List initial_mems(area);
+  initial_mems.push(initial_mem);
+  for (uint i = 0; i < initial_mems.size(); i++) {
+    Node* n = initial_mems.at(i);
 
     if (n->is_Phi()) {
       for (uint i = PhiNode::Input, imax = n->req(); i < imax; i++) {
         Node* m = n->in(i);
-        if (!initial_mems.test_set(m->_idx)) {
-          worklist.push(m);
+        if (!initial_mems.contains(m)) {
+          initial_mems.push(m);
         }
       }
     } else if (n->is_MergeMem() && load_alias_idx >= Compile::AliasIdxRaw) {
@@ -739,19 +737,20 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       // creates the memory state for this slice.
       MergeMemNode* mm = n->as_MergeMem();
       Node* p = mm->memory_at(load_alias_idx);
-      if (p != mm->base_memory() && !initial_mems.test_set(p->_idx)) {
-        worklist.push(p);
+      if (p != mm->base_memory() && !initial_mems.contains(p)) {
+        initial_mems.push(p);
       }
     }
   }
 
   // 2. Walk down from the initial memory states and administer potential
   // interfering memory state definitions.
-  VectorSet visited(area);
-  VectorSet visited_uses(area);
+  Node_List worklist(area);
+  Node_List visited_def(area);
+  worklist.copy(initial_mems);
   while (worklist.size() > 0) {
     Node* def_mem_state = worklist.pop();
-    assert(!visited.test(def_mem_state->_idx), "invariant");
+    assert(!visited_def.contains(def_mem_state), "invariant");
 
     // There are Phi memory nodes for which initial memory is live on _all_
     // inputs. For such Phis, it is not enough to raise the LCA above relevant
@@ -777,12 +776,12 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     // them.
     if (def_mem_state->is_Phi() &&
         // We always continue through initial memory Phis
-        !initial_mems.test(def_mem_state->_idx)) {
+        !initial_mems.contains(def_mem_state)) {
       assert(def_mem_state->is_memory_phi(), "sanity");
       bool breakthrough = true;
       for (uint i = PhiNode::Input, imax = def_mem_state->req(); i < imax; i++) {
         Node* in = def_mem_state->in(i);
-        if (!visited.test(in->_idx)) {
+        if (!visited_def.contains(in)) {
           // We have at least one unknown Phi input and can therefore not break
           // through the Phi.
           breakthrough = false;
@@ -796,49 +795,31 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
 
     // We now visit all children use_mem_state of def_mem_state and consider if
     // they may warrant an anti-dependence edge or further anti-dependence search.
-    visited.set(def_mem_state->_idx);
-    visited_uses.reset();
+    visited_def.push(def_mem_state);
     for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
       Node* use_mem_state = def_mem_state->fast_out(i);
-
-      // Initial memory is never a use.
-      if (initial_mems.test(use_mem_state->_idx)) {
-        continue;
-      }
-
-      // Optimization: We have visited the use already.
-      if (visited.test(use_mem_state->_idx)) {
-        continue;
-      }
-
-      // Optimization: We have visited this use already from the current def.
-      // Mainly useful to not repeat use Phis.
-      if (visited_uses.test_set(use_mem_state->_idx)) {
-        continue;
-      }
 
       // MergeMems do not directly have anti-dependences. Treat them as
       // internal nodes in a forward tree of memory states.
       if (use_mem_state->is_MergeMem()) {
-        worklist.push(use_mem_state);
+        if (!worklist.contains(use_mem_state) && !visited_def.contains(use_mem_state)) {
+          worklist.push(use_mem_state);
+        }
         continue;
       }
 
       // A node that does not require an anti-dependence edge and also
       // stops the anti-dependence search.
       if (!needs_anti_dependence_edge(load, use_mem_state, load_alias_idx)) {
-        visited.set(use_mem_state->_idx);
         continue;
       }
 
       // We have reached a Phi from a new input edge. Make sure to consider the
       // Phi again for breakthrough.
       if (use_mem_state->is_Phi()) {
-        worklist.push(use_mem_state);
-      } else {
-        // We allow phis to be repeated; they can merge two relevant states.
-        // Only set visited for non-Phi memory uses.
-        visited.set(use_mem_state->_idx);
+        if (!worklist.contains(use_mem_state) && !visited_def.contains(use_mem_state)) {
+          worklist.push(use_mem_state);
+        }
       }
 
       // We are now at a use_mem_state that may require an anti-dependence
