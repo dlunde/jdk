@@ -1166,8 +1166,7 @@ Block* PhaseCFG::insert_anti_dependences_new1(Block* LCA, Node* load, Verifier& 
       // will find him on the non_early_stores list and stick him
       // with a precedence edge.
       // (But, don't bother if LCA is already raised all the way.)
-      /* if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) { */
-      if (!unrelated_load_in_store_null_block(use_mem_state, load)) {
+      if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
         // store_block->set_raise_LCA_mark(load_index);
         verifier.LCA_marks.set(store_block->_pre_order);
         raise_LCA_mark.push(store_block);
@@ -1501,8 +1500,7 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
       // will find him on the non_early_stores list and stick him
       // with a precedence edge.
       // (But, don't bother if LCA is already raised all the way.)
-      /* if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) { */
-      if (!unrelated_load_in_store_null_block(use_mem_state, load)) {
+      if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
         /* store_block->set_raise_LCA_mark(load_index); */
         verifier.LCA_marks.set(store_block->_pre_order);
         raise_LCA_mark.push(store_block);
