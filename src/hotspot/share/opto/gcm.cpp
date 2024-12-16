@@ -1646,6 +1646,32 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
       }
     }
   }
+
+  if(load->in(0) && has_block(initial_mem)) {
+    Block* initial_mem_block = get_block_for_node(initial_mem);
+    Block* b = early;
+    assert(initial_mem_block->dominates(early), "");
+    while (b != nullptr && (
+            (b != initial_mem_block && initial_mem_block->_idom != b)
+            || (b == initial_mem_block && initial_mem->is_Phi())
+          )) {
+      // Check for a "better" Phi
+      bool found = false;
+      for (uint i = 0; i < b->number_of_nodes(); ++i) {
+        Node* node = b->get_node(i);
+        if (node->is_memory_phi() && C->can_alias(node->adr_type(), load_alias_idx)) {
+          found = true;
+          initial_mem = node;
+          if (C->get_alias_index(initial_mem->adr_type()) == Compile::AliasIdxBot) {
+            break;
+          }
+        }
+      }
+      if (found) { break; }
+      b = b->_idom;
+    }
+  }
+
   worklist_def_use_mem_states.push(nullptr, initial_mem);
   GrowableArray<Block*> raise_LCA_mark;
   while (worklist_def_use_mem_states.is_nonempty()) {
@@ -1783,7 +1809,9 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
       // Add an anti-dep edge, and squeeze 'load' into the highest block.
       if (verify) {
       } else {
-        /* use_mem_state->add_prec(load); */
+        if (UseNewCode2) {
+          use_mem_state->add_prec(load);
+        }
         verifier.anti_dependences.set(use_mem_state->_idx);
       }
       LCA = early;
@@ -1822,7 +1850,9 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
         // add anti_dependence from store to load in its own block
         if (verify) {
         } else {
-          /* store->add_prec(load); */
+          if (UseNewCode2) {
+            store->add_prec(load);
+          }
           verifier.anti_dependences.set(store->_idx);
         }
       } else {
@@ -1872,7 +1902,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     new3.LCA = insert_anti_dependences_new3(LCA, load, new3, verify);
   }
   if (UseNewCode2) {
-    return new1.LCA;
+    return new3.LCA;
   }
 
   // Compute the alias index.  Loads and stores with different alias indices
