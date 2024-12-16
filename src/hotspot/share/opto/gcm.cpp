@@ -843,7 +843,8 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     // This ensures that we reconsider Phis whenever we have updated inputs to
     // them.
     bool continue_through_phi = false;
-    if (op == Op_Phi && def_mem_state != nullptr) {
+    if (op == Op_Phi && def_mem_state != nullptr
+        && !worklist_def_use_mem_states.has_visited_def(use_mem_state)) {
       continue_through_phi = true;
       for (uint i = PhiNode::Input, imax = use_mem_state->req(); i < imax; i++) {
         Node* in = use_mem_state->in(i);
@@ -866,18 +867,20 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       if (worklist_def_use_mem_states.has_visited_def(use_mem_state)) {
         continue; // Already visited
       }
-      def_mem_state = use_mem_state;   // It's not a possibly interfering store.
-      worklist_def_use_mem_states.mark_visited_def(def_mem_state);
-      for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
-        use_mem_state = def_mem_state->fast_out(i);
-        if (use_mem_state->needs_anti_dependence_check()) {
-          // use_mem_state is also a kind of load (i.e. needs_anti_dependence_check), and it is not a memory state
+      worklist_def_use_mem_states.mark_visited_def(use_mem_state);
+      for (DUIterator_Fast imax, i = use_mem_state->fast_outs(imax); i < imax; i++) {
+        Node* out = use_mem_state->fast_out(i);
+        if (out->needs_anti_dependence_check()) {
+          // out is also a kind of load (i.e. needs_anti_dependence_check), and it is not a memory state
           // modifying node (store, Phi or MergeMem). Hence, load can't be anti dependent on this node.
           continue;
         }
-        worklist_def_use_mem_states.push(def_mem_state, use_mem_state);
+        worklist_def_use_mem_states.push(use_mem_state, out);
       }
-      continue;
+      if (def_mem_state == nullptr || op == Op_MergeMem) {
+        // No more work to do for initial memory or MergeMem, continue.
+        continue;
+      }
     }
 
     if (op == Op_MachProj || op == Op_Catch)   continue;
