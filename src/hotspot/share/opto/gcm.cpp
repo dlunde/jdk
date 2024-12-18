@@ -1647,14 +1647,14 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
     }
   }
 
-  bool found_initial_mem_phis = false;
+  worklist_def_use_mem_states.push(nullptr, initial_mem);
   Block* initial_mem_block = get_block_for_node(initial_mem);
   if (load->in(0) && initial_mem_block != nullptr) {
     // If the load has an explicit control input and initial_mem has a block,
     // walk up the dominator tree from the early block to the initial memory
     // block. If we in a block find memory Phi(s) that can alias initial_mem,
-    // these represent the actual initial memory state. In rare cases, there
-    // can be multiple such Phis within the same block.
+    // these are also potential initial memory states and there may be further
+    // required anti dependences due to them.
     assert(initial_mem_block->dominates(early), "invariant");
     Block* b = early;
     // Stop searching when we run out of dominators (b != nullptr) or when we
@@ -1666,24 +1666,11 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
       for (uint i = 0; i < b->number_of_nodes(); ++i) {
         Node* n = b->get_node(i);
         if (n->is_memory_phi() && C->can_alias(n->adr_type(), load_alias_idx)) {
-          found_initial_mem_phis = true;
           worklist_def_use_mem_states.push(nullptr, n);
         }
       }
-      // As soon as we find a block with relevant initial memory phis, stop the
-      // search. Anything we would find if we continue the search dominates the
-      // current Phis and is irrelevant.
-      if (found_initial_mem_phis) {
-        break;
-      }
       b = b->_idom;
     }
-  }
-
-  if (!found_initial_mem_phis) {
-    // If there are no initial memory phis, start from the direct input
-    // initial_mem.
-    worklist_def_use_mem_states.push(nullptr, initial_mem);
   }
   GrowableArray<Block*> raise_LCA_mark;
   while (worklist_def_use_mem_states.is_nonempty()) {
