@@ -1647,32 +1647,44 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
     }
   }
 
-  if(load->in(0) && has_block(initial_mem)) {
-    Block* initial_mem_block = get_block_for_node(initial_mem);
+  bool found_initial_mem_phis = false;
+  Block* initial_mem_block = get_block_for_node(initial_mem);
+  if (load->in(0) && initial_mem_block != nullptr) {
+    // If the load has an explicit control input and initial_mem has a block,
+    // walk up the dominator tree from the early block to the initial memory
+    // block. If we in a block find memory Phi(s) that can alias initial_mem,
+    // these represent the actual initial memory state. In rare cases, there
+    // can be multiple such Phis within the same block.
+    assert(initial_mem_block->dominates(early), "invariant");
     Block* b = early;
-    assert(initial_mem_block->dominates(early), "");
-    while (b != nullptr && (
-            (b != initial_mem_block && initial_mem_block->_idom != b)
-            || (b == initial_mem_block && initial_mem->is_Phi())
-          )) {
-      // Check for a "better" Phi
-      bool found = false;
+    // Stop searching when we run out of dominators (b != nullptr) or when we
+    // step past the initial memory block (b != initial_mem_block->_idom).
+    while (b != nullptr && b != initial_mem_block->_idom) {
+      if (b == initial_mem_block && !initial_mem->is_Phi()) {
+        break;
+      }
       for (uint i = 0; i < b->number_of_nodes(); ++i) {
-        Node* node = b->get_node(i);
-        if (node->is_memory_phi() && C->can_alias(node->adr_type(), load_alias_idx)) {
-          found = true;
-          initial_mem = node;
-          if (C->get_alias_index(initial_mem->adr_type()) == Compile::AliasIdxBot) {
-            break;
-          }
+        Node* n = b->get_node(i);
+        if (n->is_memory_phi() && C->can_alias(n->adr_type(), load_alias_idx)) {
+          found_initial_mem_phis = true;
+          worklist_def_use_mem_states.push(nullptr, n);
         }
       }
-      if (found) { break; }
+      // As soon as we find a block with relevant initial memory phis, stop the
+      // search. Anything we would find if we continue the search dominates the
+      // current Phis and is irrelevant.
+      if (found_initial_mem_phis) {
+        break;
+      }
       b = b->_idom;
     }
   }
 
-  worklist_def_use_mem_states.push(nullptr, initial_mem);
+  if (!found_initial_mem_phis) {
+    // If there are no initial memory phis, start from the direct input
+    // initial_mem.
+    worklist_def_use_mem_states.push(nullptr, initial_mem);
+  }
   GrowableArray<Block*> raise_LCA_mark;
   while (worklist_def_use_mem_states.is_nonempty()) {
     // Examine a nearby store to see if it might interfere with our load.
@@ -1686,7 +1698,7 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
     // MergeMems do not directly have anti-deps.
     // Treat them as internal nodes in a forward tree of memory states,
     // the leaves of which are each a 'possible-def'.
-    if (use_mem_state == initial_mem    // root (exclusive) of tree we are searching
+    if (def_mem_state == nullptr    // root (exclusive) of tree we are searching
         || op == Op_MergeMem    // internal node of tree we are searching
         ) {
       def_mem_state = use_mem_state;   // It's not a possibly interfering store.
