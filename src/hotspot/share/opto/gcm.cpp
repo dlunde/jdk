@@ -450,39 +450,6 @@ static Block* raise_LCA_above_use(Block* LCA, Node* use, Node* def, const PhaseC
   return LCA;
 }
 
-static Block* raise_LCA_above_marks_new(Block* LCA, VectorSet& LCA_marks_new, Block* early, const PhaseCFG* cfg) {
-  Block_List worklist;
-  VectorSet visited;
-  worklist.push(LCA);
-  while (worklist.size() > 0) {
-    Block* mid = worklist.pop();
-    if (mid == early)  continue;  // stop searching here
-
-    // Test and set the visited bit.
-    if (visited.test(mid->_pre_order))  continue;  // already visited
-
-    // Don't process the current LCA, otherwise the search may terminate early
-    if (mid != LCA && LCA_marks_new.test(mid->_pre_order)) {
-      // Raise the LCA.
-      LCA = mid->dom_lca(LCA);
-      if (LCA == early)  break;   // stop searching everywhere
-      assert(early->dominates(LCA), "early is high enough");
-      // Resume searching at that point, skipping intermediate levels.
-      worklist.push(LCA);
-      if (LCA == mid)
-        continue; // Don't mark as visited to avoid early termination.
-    } else {
-      // Keep searching through this block's predecessors.
-      for (uint j = 1, jmax = mid->num_preds(); j < jmax; j++) {
-        Block* mid_parent = cfg->get_block_for_node(mid->pred(j));
-        worklist.push(mid_parent);
-      }
-    }
-    visited.set(mid->_pre_order);
-  }
-  return LCA;
-}
-
 //----------------------------raise_LCA_above_marks----------------------------
 // Return a new LCA that dominates LCA and any of its marked predecessors.
 // Search all my parents up to 'early' (exclusive), looking for predecessors
@@ -599,6 +566,514 @@ bool PhaseCFG::unrelated_load_in_store_null_block(Node* store, Node* load) {
   return false;
 }
 
+class DefUseMemStatesQueue : public StackObj {
+private:
+  class DefUsePair : public StackObj {
+  private:
+    Node* _def; // memory state
+    Node* _use; // use of the memory state that also modifies the memory state
+
+  public:
+    DefUsePair(Node* def, Node* use) :
+      _def(def), _use(use) {
+    }
+
+    DefUsePair() :
+      _def(nullptr), _use(nullptr) {
+    }
+
+    Node* def() const {
+      return _def;
+    }
+
+    Node* use() const {
+      return _use;
+    }
+  };
+
+  GrowableArray<DefUsePair> _queue;
+  GrowableArray<MergeMemNode*> _worklist_visited; // visited mergemem nodes
+
+  bool already_enqueued(Node* def_mem, PhiNode* use_phi) const {
+    // def_mem is one of the inputs of use_phi and at least one input of use_phi is
+    // not def_mem. It's however possible that use_phi has def_mem as input multiple
+    // times. If that happens, use_phi is recorded as a use of def_mem multiple
+    // times as well. When PhaseCFG::insert_anti_dependences() goes over
+    // uses of def_mem and enqueues them for processing, use_phi would then be
+    // enqueued for processing multiple times when it only needs to be
+    // processed once. The code below checks if use_phi as a use of def_mem was
+    // already enqueued to avoid redundant processing of use_phi.
+    int j = _queue.length()-1;
+    // If there are any use of def_mem already enqueued, they were enqueued
+    // last (all use of def_mem are processed in one go).
+    for (; j >= 0; j--) {
+      const DefUsePair& def_use_pair = _queue.at(j);
+      if (def_use_pair.def() != def_mem) {
+        // We're done with the uses of def_mem
+        break;
+      }
+      if (def_use_pair.use() == use_phi) {
+        return true;
+      }
+    }
+#ifdef ASSERT
+    for (; j >= 0; j--) {
+      const DefUsePair& def_use_pair = _queue.at(j);
+      assert(def_use_pair.def() != def_mem, "Should be done with the uses of def_mem");
+    }
+#endif
+    return false;
+  }
+
+public:
+  DefUseMemStatesQueue(ResourceArea* area) {
+  }
+
+  void push(Node* def_mem_state, Node* use_mem_state) {
+    if (use_mem_state->is_MergeMem()) {
+      // Be sure we don't get into combinatorial problems.
+      if (!_worklist_visited.append_if_missing(use_mem_state->as_MergeMem())) {
+        return; // already on work list; do not repeat
+      }
+    } else if (use_mem_state->is_Phi()) {
+      // A Phi could have the same mem as input multiple times. If that's the case, we don't need to enqueue it
+      // more than once. We otherwise allow phis to be repeated; they can merge two relevant states.
+      if (already_enqueued(def_mem_state, use_mem_state->as_Phi())) {
+        return;
+      }
+    }
+
+    _queue.push(DefUsePair(def_mem_state, use_mem_state));
+  }
+
+  bool is_nonempty() const {
+    return _queue.is_nonempty();
+  }
+
+  Node* top_def() const {
+    return _queue.top().def();
+  }
+
+  Node* top_use() const {
+    return _queue.top().use();
+  }
+
+  void pop() {
+    _queue.pop();
+  }
+};
+
+
+static Block* raise_LCA_above_marks_new(Block* LCA, VectorSet& LCA_marks_new, Block* early, const PhaseCFG* cfg) {
+  Block_List worklist;
+  VectorSet visited;
+  worklist.push(LCA);
+  while (worklist.size() > 0) {
+    Block* mid = worklist.pop();
+    if (mid == early)  continue;  // stop searching here
+
+    // Test and set the visited bit.
+    if (visited.test(mid->_pre_order))  continue;  // already visited
+
+    // Don't process the current LCA, otherwise the search may terminate early
+    if (mid != LCA && LCA_marks_new.test(mid->_pre_order)) {
+      // Raise the LCA.
+      LCA = mid->dom_lca(LCA);
+      if (LCA == early)  break;   // stop searching everywhere
+      assert(early->dominates(LCA), "early is high enough");
+      // Resume searching at that point, skipping intermediate levels.
+      worklist.push(LCA);
+      if (LCA == mid)
+        continue; // Don't mark as visited to avoid early termination.
+    } else {
+      // Keep searching through this block's predecessors.
+      for (uint j = 1, jmax = mid->num_preds(); j < jmax; j++) {
+        Block* mid_parent = cfg->get_block_for_node(mid->pred(j));
+        worklist.push(mid_parent);
+      }
+    }
+    visited.set(mid->_pre_order);
+  }
+  return LCA;
+}
+
+Block* PhaseCFG::insert_anti_dependences_new1(Block* LCA, Node* load, Verifier& verifier, bool verify) {
+  /* ResourceMark rm; */
+  /* assert(load->needs_anti_dependence_check(), "must be a load of some sort"); */
+  /* assert(LCA != nullptr, ""); */
+  DEBUG_ONLY(Block* LCA_orig = LCA);
+
+  // Compute the alias index.  Loads and stores with different alias indices
+  // do not need anti-dependence edges.
+  int load_alias_idx = C->get_alias_index(load->adr_type());
+/* #ifdef ASSERT */
+/*   assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index"); */
+/*   if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() && */
+/*       (PrintOpto || VerifyAliases || */
+/*        (PrintMiscellaneous && (WizardMode || Verbose)))) { */
+/*     // Load nodes should not consume all of memory. */
+/*     // Reporting a bottom type indicates a bug in adlc. */
+/*     // If some particular type of node validly consumes all of memory, */
+/*     // sharpen the preceding "if" to exclude it, so we can catch bugs here. */
+/*     tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory."); */
+/*     load->dump(2); */
+/*     if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, ""); */
+/*   } */
+/* #endif */
+
+  if (!C->alias_type(load_alias_idx)->is_rewritable()) {
+    // It is impossible to spoil this load by putting stores before it,
+    // because we know that the stores will never update the value
+    // which 'load' must witness.
+    return LCA;
+  }
+
+  node_idx_t load_index = load->_idx;
+
+  // Note the earliest legal placement of 'load', as determined by
+  // by the unique point in the dom tree where all memory effects
+  // and other inputs are first available.  (Computed by schedule_early.)
+  // For normal loads, 'early' is the shallowest place (dom graph wise)
+  // to look for anti-deps between this load and any store.
+  Block* early = get_block_for_node(load);
+
+  // If we are subsuming loads, compute an "early" block that only considers
+  // memory or address inputs. This block may be different than the
+  // schedule_early block in that it could be at an even shallower depth in the
+  // dominator tree, and allow for a broader discovery of anti-dependences.
+  if (C->subsume_loads()) {
+    early = memory_early_block(load, early, this);
+    if (C->failing()) {
+      return nullptr;
+    }
+  }
+
+  ResourceArea* area = Thread::current()->resource_area();
+  DefUseMemStatesQueue worklist_def_use_mem_states(area); // prior memory state to store and possible-def to explore
+  Node_List non_early_stores(area); // all relevant stores outside of early
+  bool must_raise_LCA = false;
+
+  // 'load' uses some memory state; look for users of the same state.
+  // Recurse through MergeMem nodes to the stores that use them.
+
+  // Each of these stores is a possible definition of memory
+  // that 'load' needs to use.  We need to force 'load'
+  // to occur before each such store.  When the store is in
+  // the same block as 'load', we insert an anti-dependence
+  // edge load->store.
+
+  // The relevant stores "nearby" the load consist of a tree rooted
+  // at initial_mem, with internal nodes of type MergeMem.
+  // Therefore, the branches visited by the worklist are of this form:
+  //    initial_mem -> (MergeMem ->)* Memory state modifying node
+  // Memory state modifying nodes include Store and Phi nodes and any node for which needs_anti_dependence_check()
+  // returns false.
+  // The anti-dependence constraints apply only to the fringe of this tree.
+  //
+  // In some cases, there are relevant memory state modifying nodes that we
+  // cannot discover by searching from initial_mem. In such cases, we need to
+  // expand our search with additional search roots. For details, see comments
+  // and code below related to the initialization of
+  // worklist_def_use_mem_states, which, prior to the main worklist loop below,
+  // contains the search roots.
+
+  Node* initial_mem = load->in(MemNode::Memory);
+
+  // We don't optimize the memory graph for pinned loads, so we may need to raise the
+  // root of our search tree through the corresponding slices of MergeMem nodes to
+  // get to the node that really creates the memory state for this slice.
+  if (load_alias_idx >= Compile::AliasIdxRaw) {
+    while (initial_mem->is_MergeMem()) {
+      MergeMemNode* mm = initial_mem->as_MergeMem();
+      Node* p = mm->memory_at(load_alias_idx);
+      if (p != mm->base_memory()) {
+        initial_mem = p;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // initial_mem is always a search root
+  worklist_def_use_mem_states.push(nullptr, initial_mem);
+
+  Block* initial_mem_block = get_block_for_node(initial_mem);
+  /* assert(initial_mem_block != nullptr, "sanity"); */
+  /* assert(initial_mem_block->dominates(early), "invariant"); */
+  // We sometimes need to add additional search roots to discover all relevant
+  // anti-dependent stores. The additional required search roots are alias
+  // memory nodes of initial_mem on the dominator tree path from the initial
+  // memory block (inclusive) to the early block (inclusive). Specifically, we
+  // must consider Phi memory nodes as search roots as they terminate
+  // anti-dependence searches reaching them from above.
+  //
+  // A situation where we need to add Phi search roots is the below.
+  //
+  //                    |
+  // initial_mem_block  |
+  //             +-------------+
+  //             |...          |
+  //             |initial_mem  |
+  //             |...          |
+  //             +-------------+
+  //                /        \
+  //               /          \
+  //              ...        ...
+  //               \          /
+  //                \        /
+  //               +----------+
+  //               |...       |
+  //               |Phi       |
+  //               |...       |
+  //               +----------+
+  //                    |
+  //                    |
+  //          early     |
+  //         +---------------------+
+  //         |...                  |
+  //         |anti-dependent store |
+  //         |...                  |
+  //         +---------------------+
+  //
+  // Here, there are multiple CFG paths from initial_mem_block to the early
+  // block. Importantly, there is a Phi memory node with initial_mem alive (not
+  // overwritten) on all of its inputs. If we only add initial_mem as our
+  // search root, our anti-dependence search will terminate at the Phi, and we
+  // will never discover the anti-dependent store in the early block.
+  //
+  // Observations indicate that extra search roots are only required if the
+  // load has an explicit control input (hence the load->in(0) != nullptr check
+  // below).
+  if (load->in(0) != nullptr) {
+    for(Block* b = early; b != initial_mem_block->_idom; b = b->_idom) {
+      /* assert(b != nullptr, "sanity"); */
+      if (b == initial_mem_block && !initial_mem->is_Phi()) {
+        // If we are in initial_mem_block, and initial_mem is not itself
+        // a Phi, it necessarily means that initial_mem is defined after all
+        // Phis in the block. Therefore, no Phis in the block are relevant
+        // search roots.
+        break;
+      }
+      // We need to process all memory Phi nodes in the block. We may not have
+      // run LCM yet, so we cannot assume anything regarding the location of
+      // Phi nodes within the block. Therefore, we must search the entire
+      // block.
+      for (uint i = 0; i < b->number_of_nodes(); ++i) {
+        Node* n = b->get_node(i);
+        if (n->is_memory_phi() && C->can_alias(n->adr_type(), load_alias_idx)
+            && n != initial_mem) {
+          // We have found a relevant Phi search root
+          worklist_def_use_mem_states.push(nullptr, n);
+        }
+      }
+    }
+  }
+  while (worklist_def_use_mem_states.is_nonempty()) {
+    // Examine a nearby store to see if it might interfere with our load.
+    Node* def_mem_state = worklist_def_use_mem_states.top_def();
+    Node* use_mem_state = worklist_def_use_mem_states.top_use();
+    worklist_def_use_mem_states.pop();
+
+    uint op = use_mem_state->Opcode();
+
+/* #ifdef ASSERT */
+/*     // CacheWB nodes are peculiar in a sense that they both are anti-dependent and produce memory. */
+/*     // Allow them to be treated as a store. */
+/*     bool is_cache_wb = false; */
+/*     if (use_mem_state->is_Mach()) { */
+/*       int ideal_op = use_mem_state->as_Mach()->ideal_Opcode(); */
+/*       is_cache_wb = (ideal_op == Op_CacheWB); */
+/*     } */
+/*     assert(!use_mem_state->needs_anti_dependence_check() || is_cache_wb, "no loads"); */
+/* #endif */
+
+    // MergeMems do not directly have anti-deps.
+    // Treat them as internal nodes in a forward tree of memory states,
+    // the leaves of which are each a 'possible-def'.
+    if (def_mem_state == nullptr // root of a tree we are searching
+        || op == Op_MergeMem     // internal node of tree we are searching
+        ) {
+      def_mem_state = use_mem_state;   // It's not a possibly interfering store.
+
+      for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
+        use_mem_state = def_mem_state->fast_out(i);
+        if (use_mem_state->needs_anti_dependence_check()) {
+          // use_mem_state is also a kind of load (i.e. needs_anti_dependence_check), and it is not a memory state
+          // modifying node (store, Phi or MergeMem). Hence, load can't be anti dependent on this node.
+          continue;
+        }
+        worklist_def_use_mem_states.push(def_mem_state, use_mem_state);
+      }
+      continue;
+    }
+
+    if (op == Op_MachProj || op == Op_Catch)   continue;
+
+    // Compute the alias index.  Loads and stores with different alias
+    // indices do not need anti-dependence edges.  Wide MemBar's are
+    // anti-dependent on everything (except immutable memories).
+    const TypePtr* adr_type = use_mem_state->adr_type();
+    if (!C->can_alias(adr_type, load_alias_idx))  continue;
+
+    // Most slow-path runtime calls do NOT modify Java memory, but
+    // they can block and so write Raw memory.
+    if (use_mem_state->is_Mach()) {
+      MachNode* mstore = use_mem_state->as_Mach();
+      if (load_alias_idx != Compile::AliasIdxRaw) {
+        // Check for call into the runtime using the Java calling
+        // convention (and from there into a wrapper); it has no
+        // _method.  Can't do this optimization for Native calls because
+        // they CAN write to Java memory.
+        if (mstore->ideal_Opcode() == Op_CallStaticJava) {
+          /* assert(mstore->is_MachSafePoint(), ""); */
+          MachSafePointNode* ms = (MachSafePointNode*) mstore;
+          /* assert(ms->is_MachCallJava(), ""); */
+          MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
+          if (mcj->_method == nullptr) {
+            // These runtime calls do not write to Java visible memory
+            // (other than Raw) and so do not require anti-dependence edges.
+            continue;
+          }
+        }
+        // Same for SafePoints: they read/write Raw but only read otherwise.
+        // This is basically a workaround for SafePoints only defining control
+        // instead of control + memory.
+        if (mstore->ideal_Opcode() == Op_SafePoint)
+          continue;
+      } else {
+        // Some raw memory, such as the load of "top" at an allocation,
+        // can be control dependent on the previous safepoint. See
+        // comments in GraphKit::allocate_heap() about control input.
+        // Inserting an anti-dep between such a safepoint and a use
+        // creates a cycle, and will cause a subsequent failure in
+        // local scheduling.  (BugId 4919904)
+        // (%%% How can a control input be a safepoint and not a projection??)
+        if (mstore->ideal_Opcode() == Op_SafePoint && load->in(0) == mstore)
+          continue;
+      }
+    }
+
+    // Identify a block that the current load must be above,
+    // or else observe that 'store' is all the way up in the
+    // earliest legal block for 'load'.  In the latter case,
+    // immediately insert an anti-dependence edge.
+    Block* store_block = get_block_for_node(use_mem_state);
+    /* assert(store_block != nullptr, "unused killing projections skipped above"); */
+
+    if (use_mem_state->is_Phi()) {
+      // 'load' uses memory which is one (or more) of the Phi's inputs.
+      // It must be scheduled not before the Phi, but rather before
+      // each of the relevant Phi inputs.
+      //
+      // Instead of finding the LCA of all inputs to a Phi that match 'mem',
+      // we mark each corresponding predecessor block and do a combined
+      // hoisting operation later (raise_LCA_above_marks).
+      //
+      // Do not assert(store_block != early, "Phi merging memory after access")
+      // PhiNode may be at start of block 'early' with backedge to 'early'
+      DEBUG_ONLY(bool found_match = false);
+      for (uint j = PhiNode::Input, jmax = use_mem_state->req(); j < jmax; j++) {
+        if (use_mem_state->in(j) == def_mem_state) {   // Found matching input?
+          DEBUG_ONLY(found_match = true);
+          Block* pred_block = get_block_for_node(store_block->pred(j));
+          if (pred_block != early) {
+            // If any predecessor of the Phi matches the load's "early block",
+            // we do not need a precedence edge between the Phi and 'load'
+            // since the load will be forced into a block preceding the Phi.
+            /* pred_block->set_raise_LCA_mark(load_index); */
+            verifier.LCA_marks.set(pred_block->_pre_order);
+            /* assert(!LCA_orig->dominates(pred_block) || */
+            /*        early->dominates(pred_block), "early is high enough"); */
+            must_raise_LCA = true;
+          } else {
+            // anti-dependent upon PHI pinned below 'early', no edge needed
+            LCA = early;             // but can not schedule below 'early'
+          }
+        }
+      }
+      /* assert(found_match, "no worklist bug"); */
+    } else if (store_block != early) {
+      // 'store' is between the current LCA and earliest possible block.
+      // Label its block, and decide later on how to raise the LCA
+      // to include the effect on LCA of this store.
+      // If this store's block gets chosen as the raised LCA, we
+      // will find him on the non_early_stores list and stick him
+      // with a precedence edge.
+      // (But, don't bother if LCA is already raised all the way.)
+      if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
+        /* store_block->set_raise_LCA_mark(load_index); */
+        verifier.LCA_marks.set(store_block->_pre_order);
+        must_raise_LCA = true;
+        non_early_stores.push(use_mem_state);
+      }
+    } else {
+      // Found a possibly-interfering store in the load's 'early' block.
+      // This means 'load' cannot sink at all in the dominator tree.
+      // Add an anti-dep edge, and squeeze 'load' into the highest block.
+      /* assert(use_mem_state != load->find_exact_control(load->in(0)), "dependence cycle found"); */
+      if (verify) {
+        /* assert(use_mem_state->find_edge(load) != -1 || unrelated_load_in_store_null_block(use_mem_state, load), */
+        /*        "missing precedence edge"); */
+      } else {
+        /* use_mem_state->add_prec(load); */
+        verifier.anti_dependences.set(use_mem_state->_idx);
+      }
+      LCA = early;
+      // This turns off the process of gathering non_early_stores.
+    }
+  }
+  // (Worklist is now empty; all nearby stores have been visited.)
+
+  // Finished if 'load' must be scheduled in its 'early' block.
+  // If we found any stores there, they have already been given
+  // precedence edges.
+  if (LCA == early)  return LCA;
+
+  // We get here only if there are no possibly-interfering stores
+  // in the load's 'early' block.  Move LCA up above all predecessors
+  // which contain stores we have noted.
+  //
+  // The raised LCA block can be a home to such interfering stores,
+  // but its predecessors must not contain any such stores.
+  //
+  // The raised LCA will be a lower bound for placing the load,
+  // preventing the load from sinking past any block containing
+  // a store that may invalidate the memory state required by 'load'.
+  if (must_raise_LCA)
+    LCA = raise_LCA_above_marks_new(LCA, verifier.LCA_marks, early, this);
+  if (LCA == early)  return LCA;
+
+  // Insert anti-dependence edges from 'load' to each store
+  // in the non-early LCA block.
+  // Mine the non_early_stores list for such stores.
+  if (verifier.LCA_marks.test(LCA->_pre_order)) {
+    while (non_early_stores.size() > 0) {
+      Node* store = non_early_stores.pop();
+      Block* store_block = get_block_for_node(store);
+      if (store_block == LCA) {
+        // add anti_dependence from store to load in its own block
+        /* assert(store != load->find_exact_control(load->in(0)), "dependence cycle found"); */
+        if (verify) {
+          /* assert(store->find_edge(load) != -1, "missing precedence edge"); */
+        } else {
+          /* store->add_prec(load); */
+          verifier.anti_dependences.set(store->_idx);
+        }
+      } else {
+        /* assert(store_block->raise_LCA_mark() == load_index, "block was marked"); */
+        // Any other stores we found must be either inside the new LCA
+        // or else outside the original LCA.  In the latter case, they
+        // did not interfere with any use of 'load'.
+        /* assert(LCA->dominates(store_block) */
+               /* || !LCA_orig->dominates(store_block), "no stray stores"); */
+      }
+    }
+  }
+
+  // Return the highest block containing stores; any stores
+  // within that block have been given anti-dependence edges.
+  return LCA;
+}
 
 class DefUseMemStatesQueueNew : public StackObj {
 private:
@@ -723,552 +1198,29 @@ public:
   }
 };
 
-class DefUseMemStatesQueue : public StackObj {
-private:
-  class DefUsePair : public StackObj {
-  private:
-    Node* _def; // memory state
-    Node* _use; // use of the memory state that also modifies the memory state
-
-  public:
-    DefUsePair(Node* def, Node* use) :
-      _def(def), _use(use) {
-    }
-
-    DefUsePair() :
-      _def(nullptr), _use(nullptr) {
-    }
-
-    Node* def() const {
-      return _def;
-    }
-
-    Node* use() const {
-      return _use;
-    }
-  };
-
-  GrowableArray<DefUsePair> _queue;
-  GrowableArray<MergeMemNode*> _worklist_visited; // visited mergemem nodes
-
-  bool already_enqueued(Node* def_mem, PhiNode* use_phi) const {
-    // def_mem is one of the inputs of use_phi and at least one input of use_phi is
-    // not def_mem. It's however possible that use_phi has def_mem as input multiple
-    // times. If that happens, use_phi is recorded as a use of def_mem multiple
-    // times as well. When PhaseCFG::insert_anti_dependences() goes over
-    // uses of def_mem and enqueues them for processing, use_phi would then be
-    // enqueued for processing multiple times when it only needs to be
-    // processed once. The code below checks if use_phi as a use of def_mem was
-    // already enqueued to avoid redundant processing of use_phi.
-    int j = _queue.length()-1;
-    // If there are any use of def_mem already enqueued, they were enqueued
-    // last (all use of def_mem are processed in one go).
-    for (; j >= 0; j--) {
-      const DefUsePair& def_use_pair = _queue.at(j);
-      if (def_use_pair.def() != def_mem) {
-        // We're done with the uses of def_mem
-        break;
-      }
-      if (def_use_pair.use() == use_phi) {
-        return true;
-      }
-    }
-#ifdef ASSERT
-    for (; j >= 0; j--) {
-      const DefUsePair& def_use_pair = _queue.at(j);
-      assert(def_use_pair.def() != def_mem, "Should be done with the uses of def_mem");
-    }
-#endif
-    return false;
-  }
-
-public:
-  DefUseMemStatesQueue(ResourceArea* area) {
-  }
-
-  void push(Node* def_mem_state, Node* use_mem_state) {
-    if (use_mem_state->is_MergeMem()) { // Not required with new solution?
-      // Be sure we don't get into combinatorial problems.
-      if (!_worklist_visited.append_if_missing(use_mem_state->as_MergeMem())) {
-        return; // already on work list; do not repeat
-      }
-    } else if (use_mem_state->is_Phi()) {
-      // A Phi could have the same mem as input multiple times. If that's the case, we don't need to enqueue it
-      // more than once. We otherwise allow phis to be repeated; they can merge two relevant states.
-      if (already_enqueued(def_mem_state, use_mem_state->as_Phi())) {
-        return;
-      }
-    }
-
-    _queue.push(DefUsePair(def_mem_state, use_mem_state));
-  }
-
-  bool is_nonempty() const {
-    return _queue.is_nonempty();
-  }
-
-  Node* top_def() const {
-    return _queue.top().def();
-  }
-
-  Node* top_use() const {
-    return _queue.top().use();
-  }
-
-  void pop() {
-    _queue.pop();
-  }
-};
-
-bool PhaseCFG::needs_anti_dependence_edge(Node* load, Node* use_mem_state, int load_alias_idx) {
-  uint op = use_mem_state->Opcode();
-  if (op == Op_MachProj || op == Op_Catch) { return false; }
-  if (use_mem_state->needs_anti_dependence_check()) { return false; }
-  // Compute the alias index.  Loads and stores with different alias
-  // indices do not need anti-dependence edges.  Wide MemBar's are
-  // anti-dependent on everything (except immutable memories).
-  const TypePtr* adr_type = use_mem_state->adr_type();
-  if (!C->can_alias(adr_type, load_alias_idx))  { return false; }
-
-  // Most slow-path runtime calls do NOT modify Java memory, but
-  // they can block and so write Raw memory.
-  if (use_mem_state->is_Mach()) {
-    MachNode* mstore = use_mem_state->as_Mach();
-    if (load_alias_idx != Compile::AliasIdxRaw) {
-      // Check for call into the runtime using the Java calling
-      // convention (and from there into a wrapper); it has no
-      // _method.  Can't do this optimization for Native calls because
-      // they CAN write to Java memory.
-      if (mstore->ideal_Opcode() == Op_CallStaticJava) {
-        assert(mstore->is_MachSafePoint(), "");
-        MachSafePointNode* ms = (MachSafePointNode*) mstore;
-        assert(ms->is_MachCallJava(), "");
-        MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
-        if (mcj->_method == nullptr) {
-          // These runtime calls do not write to Java visible memory
-          // (other than Raw) and so do not require anti-dependence edges.
-          return false;
-        }
-      }
-      // Same for SafePoints: they read/write Raw but only read otherwise.
-      // This is basically a workaround for SafePoints only defining control
-      // instead of control + memory.
-      if (mstore->ideal_Opcode() == Op_SafePoint)
-        return false;
-    } else {
-      // Some raw memory, such as the load of "top" at an allocation,
-      // can be control dependent on the previous safepoint. See
-      // comments in GraphKit::allocate_heap() about control input.
-      // Inserting an anti-dep between such a safepoint and a use
-      // creates a cycle, and will cause a subsequent failure in
-      // local scheduling.  (BugId 4919904)
-      // (%%% How can a control input be a safepoint and not a projection??)
-      if (mstore->ideal_Opcode() == Op_SafePoint && load->in(0) == mstore)
-        return false;
-    }
-  }
-  return true;
-}
-
-void verify_debug(Node* load, Verifier& old, Verifier& new1, Verifier& new2, Verifier& new3) {
-  if (UseNewCode && Compile::current()->is_method_compilation()) {
-    static int diffs = 0;
-    static int total = 0;
-    bool diff = false;
-    if (old.LCA != new1.LCA || new1.LCA != new2.LCA || new2.LCA != new3.LCA) {
-      diff = true;
-      tty->print_cr("LCAs differ. Old: %u, New1: %u, New2: %u", old.LCA->_pre_order, new1.LCA->_pre_order, new2.LCA->_pre_order);
-      tty->print("Old marks: "); old.LCA_marks.dump(); tty->cr();
-      tty->print("New1 marks: "); new1.LCA_marks.dump(); tty->cr();
-      tty->print("New2 marks: "); new2.LCA_marks.dump(); tty->cr();
-      tty->print("New3 marks: "); new3.LCA_marks.dump(); tty->cr();
-      tty->print_cr("LCA dom depth: %d", old.LCA->_dom_depth);
-      tty->print_cr("LCA_new dom depth: %d", new1.LCA->_dom_depth);
-      tty->print_cr("LCA_new2 dom depth: %d", new2.LCA->_dom_depth);
-      tty->print_cr("LCA_new3 dom depth: %d", new3.LCA->_dom_depth);
-    }
-    if (!(old.anti_dependences == new1.anti_dependences) ||
-        !(new1.anti_dependences == new2.anti_dependences) ||
-        !(new2.anti_dependences == new3.anti_dependences)) {
-      diff = true;
-      tty->print_cr("Anti dependence edges differ.");
-      tty->print("Old: "); old.anti_dependences.dump(); tty->cr();
-      tty->print("New1: "); new1.anti_dependences.dump(); tty->cr();
-      tty->print("New2: "); new2.anti_dependences.dump(); tty->cr();
-      tty->print("New3: "); new3.anti_dependences.dump(); tty->cr();
-    }
-    if(!(new1.initial_mems == new2.initial_mems)) {
-      diff = true;
-      tty->print_cr("Initial mems differ");
-      tty->print("New1: "); new1.initial_mems.dump(); tty->cr();
-      tty->print("New2: "); new2.initial_mems.dump(); tty->cr();
-    }
-    total++;
-    if (diff) {
-      diffs++;
-      tty->print_cr("Load: %u", load->_idx);
-      tty->print_cr("Diffs: %i, Total: %i", diffs, total);
-      tty->print_cr("---------------------------------");
-    }
-  }
-}
-
-
-Block* PhaseCFG::insert_anti_dependences_new1(Block* LCA, Node* load, Verifier& verifier, bool verify) {
-  if (UseNewCode2) {
-    assert(load->needs_anti_dependence_check(), "must be a load of some sort");
-    assert(LCA != nullptr, "");
-  }
-  DEBUG_ONLY(Block* LCA_orig = LCA);
-
-  // Compute the alias index.  Loads and stores with different alias indices
-  // do not need anti-dependence edges.
-  int load_alias_idx = C->get_alias_index(load->adr_type());
-#ifdef ASSERT
-  if (UseNewCode2) {
-    assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index");
-  }
-  if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() &&
-      (PrintOpto || VerifyAliases ||
-       (PrintMiscellaneous && (WizardMode || Verbose)))) {
-    // Load nodes should not consume all of memory.
-    // Reporting a bottom type indicates a bug in adlc.
-    // If some particular type of node validly consumes all of memory,
-    // sharpen the preceding "if" to exclude it, so we can catch bugs here.
-    tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory.");
-    load->dump(2);
-    if (UseNewCode2 && VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, "");
-  }
-#endif
-
-  if (!C->alias_type(load_alias_idx)->is_rewritable()) {
-    // It is impossible to spoil this load by putting stores before it,
-    // because we know that the stores will never update the value
-    // which 'load' must witness.
-    return LCA;
-  }
-
-  node_idx_t load_index = load->_idx;
-
-  // Note the earliest legal placement of 'load', as determined by
-  // by the unique point in the dom tree where all memory effects
-  // and other inputs are first available.  (Computed by schedule_early.)
-  // For normal loads, 'early' is the shallowest place (dom graph wise)
-  // to look for anti-deps between this load and any store.
-  Block* early = get_block_for_node(load);
-
-  // If we are subsuming loads, compute an "early" block that only considers
-  // memory or address inputs. This block may be different than the
-  // schedule_early block in that it could be at an even shallower depth in the
-  // dominator tree, and allow for a broader discovery of anti-dependences.
-  if (C->subsume_loads()) {
-    early = memory_early_block(load, early, this);
-  }
-
-  ResourceArea* area = Thread::current()->resource_area();
-  DefUseMemStatesQueue worklist_def_use_mem_states(area); // prior memory state to store and possible-def to explore
-  Node_List non_early_stores(area); // all relevant stores outside of early
-  bool must_raise_LCA = false;
-
-  // 'load' uses some memory state; look for users of the same state.
-  // Recurse through MergeMem nodes to the stores that use them.
-
-  // Each of these stores is a possible definition of memory
-  // that 'load' needs to use.  We need to force 'load'
-  // to occur before each such store.  When the store is in
-  // the same block as 'load', we insert an anti-dependence
-  // edge load->store.
-
-  // The relevant stores "nearby" the load consist of a tree rooted
-  // at initial_mem, with internal nodes of type MergeMem.
-  // Therefore, the branches visited by the worklist are of this form:
-  //    initial_mem -> (MergeMem ->)* Memory state modifying node
-  // Memory state modifying nodes include Store and Phi nodes and any node for which needs_anti_dependence_check()
-  // returns false.
-  // The anti-dependence constraints apply only to the fringe of this tree.
-
-  Node* initial_mem = load->in(MemNode::Memory);
-
-  // 1. Starting at initial_mem, walk upwards through Phis and MergeMems to
-  // collect the full set of possible initial memory states.
-  Unique_Node_List initial_mems(area);
-  Unique_Node_List worklist(area);
-  worklist.push(initial_mem);
-  verifier.initial_mems.set(initial_mem->_idx);
-  while (worklist.size() > 0) {
-    Node* n = worklist.pop();
-    if (initial_mems.member(n)) {
-      continue;
-    }
-    initial_mems.push(n);
-    verifier.initial_mems.set(n->_idx);
-    if (n->is_Phi()) {
-      for (uint i = PhiNode::Input, imax = n->req(); i < imax; i++) {
-        Node* m = n->in(i);
-        if (initial_mems.member(m)) {
-          continue;
-        }
-        worklist.push(m);
-      }
-    } else if (n->is_MergeMem() && load_alias_idx >= Compile::AliasIdxRaw) {
-      // We don't optimize the memory graph for pinned loads, so we may need to
-      // raise the initial memory states of our search tree through the
-      // corresponding slices of MergeMem nodes to get to the nodes that really
-      // creates the memory state for this slice.
-      MergeMemNode* mm = n->as_MergeMem();
-      Node* p = mm->memory_at(load_alias_idx);
-      if (p != mm->base_memory()) {
-        worklist.push(p);
-      }
-    }
-  }
-
-  // 2. Walk downwards from the initial memory states and record potential
-  // interfering memory state definitions.
-  VectorSet visited(area);
-  assert(worklist.size() == 0, "sanity");
-  worklist.copy(initial_mems);
-  while (worklist.size() > 0) {
-    Node* def_mem_state = worklist.pop();
-    if (visited.test(def_mem_state->_idx)) {
-      continue;
-    }
-
-    // Phis require special consideration during the downward walk. If we know
-    // for certain that the initial memory state is live on _all_ the Phi
-    // inputs, it must also be live at the Phi. In this case, we break through
-    // the Phi and continue the downward walk. If we do not know that initial
-    // memory is live on all the Phi inputs, we must in the end raise the LCA
-    // to before each input where initial memory is live.
-    //
-    // We _only_ set Phi nodes to visited when we have broken through them.
-    // This ensures that we reconsider Phis whenever we have updated inputs to
-    // them.
-    if (def_mem_state->is_Phi() &&
-        // We always continue through initial memory Phis
-        !initial_mems.member(def_mem_state)) {
-      assert(def_mem_state->is_memory_phi(), "sanity");
-      bool breakthrough = true;
-      for (uint i = PhiNode::Input, imax = def_mem_state->req(); i < imax; i++) {
-        Node* in = def_mem_state->in(i);
-        if (!visited.test(in->_idx)) {
-          // We have at least one unknown Phi input, we cannot break through
-          // the Phi.
-          breakthrough = false;
-          break;
-        }
-      }
-      if (!breakthrough) {
-        continue;
-      }
-    }
-
-    // We now visit all children use_mem_state of def_mem_state and consider if
-    // they may warrant an anti-dependence edge or further downward walks.
-    visited.set(def_mem_state->_idx);
-    for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
-      Node* use_mem_state = def_mem_state->fast_out(i);
-      if (!visited.test(use_mem_state->_idx)) {
-        if (use_mem_state->is_MergeMem()) {
-          // MergeMems do not directly have anti-dependences. Treat them as
-          // internal nodes in a forward tree of memory states.
-          worklist.push(use_mem_state);
-          continue;
-        }
-        if (!needs_anti_dependence_edge(load, use_mem_state, load_alias_idx)) {
-          // A node that does not require an anti-dependence edge and also
-          // stops the downward walk.
-          continue;
-        }
-        if (use_mem_state->is_Phi()) {
-          // We have reached a (possibly already visited) Phi from a new input
-          // edge. Make sure to consider the Phi again for breakthrough.
-          worklist.push(use_mem_state);
-        }
-        // We are now at a use_mem_state that may require an anti-dependence
-        // edge.
-        worklist_def_use_mem_states.push(def_mem_state, use_mem_state);
-      }
-    }
-  }
-
-  // 3. Now go through the potentially interfering stores and administer them.
-  GrowableArray<Block*> raise_LCA_mark;
-  while (worklist_def_use_mem_states.is_nonempty()) {
-    // Examine a nearby store to see if it might interfere with our load.
-    Node* def_mem_state = worklist_def_use_mem_states.top_def();
-    Node* use_mem_state = worklist_def_use_mem_states.top_use();
-    worklist_def_use_mem_states.pop();
-
-#ifdef ASSERT
-    // CacheWB nodes are peculiar in a sense that they both are anti-dependent and produce memory.
-    // Allow them to be treated as a store.
-    bool is_cache_wb = false;
-    if (use_mem_state->is_Mach()) {
-      int ideal_op = use_mem_state->as_Mach()->ideal_Opcode();
-      is_cache_wb = (ideal_op == Op_CacheWB);
-    }
-    if (UseNewCode2) {
-      assert(needs_anti_dependence_edge(load, use_mem_state, load_alias_idx) || is_cache_wb, "no loads");
-    }
-#endif
-
-    // Identify a block that the current load must be above,
-    // or else observe that 'store' is all the way up in the
-    // earliest legal block for 'load'.  In the latter case,
-    // immediately insert an anti-dependence edge.
-    Block* store_block = get_block_for_node(use_mem_state);
-    if (UseNewCode2) {
-      assert(store_block != nullptr, "unused killing projections skipped above");
-    }
-
-    if (use_mem_state->is_Phi()) {
-
-      // Loop-phis need to raise load before input. (Other phis are treated
-      // as store below.)
-      //
-      // 'load' uses memory which is one (or more) of the Phi's inputs.
-      // It must be scheduled not before the Phi, but rather before
-      // each of the relevant Phi inputs.
-      //
-      // Instead of finding the LCA of all inputs to a Phi that match 'mem',
-      // we mark each corresponding predecessor block and do a combined
-      // hoisting operation later (raise_LCA_above_marks).
-      //
-      // Do not assert(store_block != early, "Phi merging memory after access")
-      // PhiNode may be at start of block 'early' with backedge to 'early'
-      DEBUG_ONLY(bool found_match = false);
-      for (uint j = PhiNode::Input, jmax = use_mem_state->req(); j < jmax; j++) {
-        if (use_mem_state->in(j) == def_mem_state) {   // Found matching input?
-          DEBUG_ONLY(found_match = true);
-          Block* pred_block = get_block_for_node(store_block->pred(j));
-          if (pred_block != early) {
-            // If any predecessor of the Phi matches the load's "early block",
-            // we do not need a precedence edge between the Phi and 'load'
-            // since the load will be forced into a block preceding the Phi.
-            // pred_block->set_raise_LCA_mark(load_index);
-            raise_LCA_mark.push(pred_block);
-            verifier.LCA_marks.set(pred_block->_pre_order);
-            if (UseNewCode2) {
-              assert(!LCA_orig->dominates(pred_block) ||
-                  early->dominates(pred_block), "early is high enough");
-            }
-            must_raise_LCA = true;
-          } else {
-            // anti-dependent upon PHI pinned below 'early', no edge needed
-            LCA = early;             // but can not schedule below 'early'
-          }
-        }
-      }
-      if (UseNewCode2) {
-        assert(found_match, "no worklist bug");
-      }
-    } else if (store_block != early) {
-      // 'store' is between the current LCA and earliest possible block.
-      // Label its block, and decide later on how to raise the LCA
-      // to include the effect on LCA of this store.
-      // If this store's block gets chosen as the raised LCA, we
-      // will find him on the non_early_stores list and stick him
-      // with a precedence edge.
-      // (But, don't bother if LCA is already raised all the way.)
-      if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
-        // store_block->set_raise_LCA_mark(load_index);
-        verifier.LCA_marks.set(store_block->_pre_order);
-        raise_LCA_mark.push(store_block);
-        must_raise_LCA = true;
-        non_early_stores.push(use_mem_state);
-      }
-    } else {
-      // Found a possibly-interfering store in the load's 'early' block.
-      // This means 'load' cannot sink at all in the dominator tree.
-      // Add an anti-dep edge, and squeeze 'load' into the highest block.
-      if (UseNewCode2) {
-        assert(use_mem_state != load->find_exact_control(load->in(0)), "dependence cycle found");
-      }
-      if (verify) {
-        if (UseNewCode2) {
-          assert(use_mem_state->find_edge(load) != -1 || unrelated_load_in_store_null_block(use_mem_state, load),
-              "missing precedence edge");
-        }
-      } else {
-        if (UseNewCode2) { use_mem_state->add_prec(load); }
-        verifier.anti_dependences.set(use_mem_state->_idx);
-      }
-      LCA = early;
-      // This turns off the process of gathering non_early_stores.
-    }
-  }
-
-  // (Worklist is now empty; all nearby stores have been visited.)
-
-  // Finished if 'load' must be scheduled in its 'early' block.
-  // If we found any stores there, they have already been given
-  // precedence edges.
-  if (LCA == early)  return LCA;
-
-  // We get here only if there are no possibly-interfering stores
-  // in the load's 'early' block.  Move LCA up above all predecessors
-  // which contain stores we have noted.
-  //
-  // The raised LCA block can be a home to such interfering stores,
-  // but its predecessors must not contain any such stores.
-  //
-  // The raised LCA will be a lower bound for placing the load,
-  // preventing the load from sinking past any block containing
-  // a store that may invalidate the memory state required by 'load'.
-  if (must_raise_LCA) {
-    // Raise
-    LCA = raise_LCA_above_marks_new(LCA, verifier.LCA_marks, early, this);
-  }
-  if (LCA == early)  return LCA;
-
-  // Insert anti-dependence edges from 'load' to each store
-  // in the non-early LCA block.
-  // Mine the non_early_stores list for such stores.
-  /* if (LCA->raise_LCA_mark() == load_index) { */
-  if (raise_LCA_mark.contains(LCA)) {
-    while (non_early_stores.size() > 0) {
-      Node* store = non_early_stores.pop();
-      Block* store_block = get_block_for_node(store);
-      if (store_block == LCA) {
-        // add anti_dependence from store to load in its own block
-        if (UseNewCode2) {
-          assert(store != load->find_exact_control(load->in(0)), "dependence cycle found");
-        }
-        if (verify) {
-          if (UseNewCode2) {
-            assert(store->find_edge(load) != -1, "missing precedence edge");
-          }
-        } else {
-          if (UseNewCode2) { store->add_prec(load); }
-          verifier.anti_dependences.set(store->_idx);
-        }
-      } else {
-        if (UseNewCode2) {
-          assert(raise_LCA_mark.contains(store_block), "block was marked");
-        }
-        // Any other stores we found must be either inside the new LCA
-        // or else outside the original LCA.  In the latter case, they
-        // did not interfere with any use of 'load'.
-        if (UseNewCode2) {
-          assert(LCA->dominates(store_block)
-              || !LCA_orig->dominates(store_block), "no stray stores");
-        }
-      }
-    }
-  }
-
-  // Return the highest block containing stores; any stores
-  // within that block have been given anti-dependence edges.
-  return LCA;
-}
 
 Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& verifier, bool verify) {
+  /* assert(load->needs_anti_dependence_check(), "must be a load of some sort"); */
+  /* assert(LCA != nullptr, ""); */
   DEBUG_ONLY(Block* LCA_orig = LCA);
 
   // Compute the alias index.  Loads and stores with different alias indices
   // do not need anti-dependence edges.
   int load_alias_idx = C->get_alias_index(load->adr_type());
+/* #ifdef ASSERT */
+/*   assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index"); */
+/*   if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() && */
+/*       (PrintOpto || VerifyAliases || */
+/*        (PrintMiscellaneous && (WizardMode || Verbose)))) { */
+/*     // Load nodes should not consume all of memory. */
+/*     // Reporting a bottom type indicates a bug in adlc. */
+/*     // If some particular type of node validly consumes all of memory, */
+/*     // sharpen the preceding "if" to exclude it, so we can catch bugs here. */
+/*     tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory."); */
+/*     load->dump(2); */
+/*     if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, ""); */
+/*   } */
+/* #endif */
 
   if (!C->alias_type(load_alias_idx)->is_rewritable()) {
     // It is impossible to spoil this load by putting stores before it,
@@ -1323,14 +1275,12 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
   Node* initial_mem = load->in(MemNode::Memory);
 
   worklist_def_use_mem_states.push(nullptr, initial_mem);
-  verifier.initial_mems.set(initial_mem->_idx);
   for (int i = 0; i < worklist_def_use_mem_states.length(); i++) {
     Node* n = worklist_def_use_mem_states.at(i).use();
 
     if (n->is_Phi()) {
       for (uint i = PhiNode::Input, imax = n->req(); i < imax; i++) {
         worklist_def_use_mem_states.push(nullptr, n->in(i));
-        verifier.initial_mems.set(n->in(i)->_idx);
       }
     } else if (n->is_MergeMem() && load_alias_idx >= Compile::AliasIdxRaw) {
       // We don't optimize the memory graph for pinned loads, so we may need to
@@ -1341,11 +1291,9 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
       Node* p = mm->memory_at(load_alias_idx);
       if (p != mm->base_memory()) {
         worklist_def_use_mem_states.push(nullptr, p);
-        verifier.initial_mems.set(p->_idx);
       }
     }
   }
-  GrowableArray<Block*> raise_LCA_mark;
   while (worklist_def_use_mem_states.is_nonempty()) {
     // Examine a nearby store to see if it might interfere with our load.
     Node* def_mem_state = worklist_def_use_mem_states.top_def();
@@ -1353,6 +1301,17 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
     worklist_def_use_mem_states.pop();
 
     uint op = use_mem_state->Opcode();
+
+/* #ifdef ASSERT */
+/*     // CacheWB nodes are peculiar in a sense that they both are anti-dependent and produce memory. */
+/*     // Allow them to be treated as a store. */
+/*     bool is_cache_wb = false; */
+/*     if (use_mem_state->is_Mach()) { */
+/*       int ideal_op = use_mem_state->as_Mach()->ideal_Opcode(); */
+/*       is_cache_wb = (ideal_op == Op_CacheWB); */
+/*     } */
+/*     assert(!use_mem_state->needs_anti_dependence_check() || is_cache_wb, "no loads"); */
+/* #endif */
 
     // There are Phi memory nodes for which initial memory is live on _all_
     // inputs. For such Phis, it is not enough to raise the LCA above relevant
@@ -1412,6 +1371,7 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
         worklist_def_use_mem_states.push(use_mem_state, out);
       }
       if (def_mem_state == nullptr || op == Op_MergeMem) {
+        // No more work to do for initial memory or MergeMem, continue.
         continue;
       }
     }
@@ -1434,7 +1394,9 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
         // _method.  Can't do this optimization for Native calls because
         // they CAN write to Java memory.
         if (mstore->ideal_Opcode() == Op_CallStaticJava) {
+          /* assert(mstore->is_MachSafePoint(), ""); */
           MachSafePointNode* ms = (MachSafePointNode*) mstore;
+          /* assert(ms->is_MachCallJava(), ""); */
           MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
           if (mcj->_method == nullptr) {
             // These runtime calls do not write to Java visible memory
@@ -1465,6 +1427,7 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
     // earliest legal block for 'load'.  In the latter case,
     // immediately insert an anti-dependence edge.
     Block* store_block = get_block_for_node(use_mem_state);
+    /* assert(store_block != nullptr, "unused killing projections skipped above"); */
 
     if (use_mem_state->is_Phi()) {
 
@@ -1488,15 +1451,17 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
             // we do not need a precedence edge between the Phi and 'load'
             // since the load will be forced into a block preceding the Phi.
             /* pred_block->set_raise_LCA_mark(load_index); */
-            must_raise_LCA = true;
-            raise_LCA_mark.push(pred_block);
             verifier.LCA_marks.set(pred_block->_pre_order);
+            /* assert(!LCA_orig->dominates(pred_block) || */
+            /*        early->dominates(pred_block), "early is high enough"); */
+            must_raise_LCA = true;
           } else {
             // anti-dependent upon PHI pinned below 'early', no edge needed
             LCA = early;             // but can not schedule below 'early'
           }
         }
       }
+      /* assert(found_match, "no worklist bug"); */
     } else if (store_block != early) {
       // 'store' is between the current LCA and earliest possible block.
       // Label its block, and decide later on how to raise the LCA
@@ -1508,7 +1473,6 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
       if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
         /* store_block->set_raise_LCA_mark(load_index); */
         verifier.LCA_marks.set(store_block->_pre_order);
-        raise_LCA_mark.push(store_block);
         must_raise_LCA = true;
         non_early_stores.push(use_mem_state);
       }
@@ -1516,7 +1480,10 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
       // Found a possibly-interfering store in the load's 'early' block.
       // This means 'load' cannot sink at all in the dominator tree.
       // Add an anti-dep edge, and squeeze 'load' into the highest block.
+      /* assert(use_mem_state != load->find_exact_control(load->in(0)), "dependence cycle found"); */
       if (verify) {
+        /* assert(use_mem_state->find_edge(load) != -1 || unrelated_load_in_store_null_block(use_mem_state, load), */
+        /*        "missing precedence edge"); */
       } else {
         /* use_mem_state->add_prec(load); */
         verifier.anti_dependences.set(use_mem_state->_idx);
@@ -1549,21 +1516,26 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
   // Insert anti-dependence edges from 'load' to each store
   // in the non-early LCA block.
   // Mine the non_early_stores list for such stores.
-  if (raise_LCA_mark.contains(LCA)) {
+  if (verifier.LCA_marks.test(LCA->_pre_order)) {
     while (non_early_stores.size() > 0) {
       Node* store = non_early_stores.pop();
       Block* store_block = get_block_for_node(store);
       if (store_block == LCA) {
         // add anti_dependence from store to load in its own block
+        /* assert(store != load->find_exact_control(load->in(0)), "dependence cycle found"); */
         if (verify) {
+          /* assert(store->find_edge(load) != -1, "missing precedence edge"); */
         } else {
           /* store->add_prec(load); */
           verifier.anti_dependences.set(store->_idx);
         }
       } else {
+        /* assert(store_block->raise_LCA_mark() == load_index, "block was marked"); */
         // Any other stores we found must be either inside the new LCA
         // or else outside the original LCA.  In the latter case, they
         // did not interfere with any use of 'load'.
+        /* assert(LCA->dominates(store_block) */
+        /*        || !LCA_orig->dominates(store_block), "no stray stores"); */
       }
     }
   }
@@ -1571,15 +1543,30 @@ Block* PhaseCFG::insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& 
   // Return the highest block containing stores; any stores
   // within that block have been given anti-dependence edges.
   return LCA;
-
 }
 
 Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& verifier, bool verify) {
+  /* assert(load->needs_anti_dependence_check(), "must be a load of some sort"); */
+  /* assert(LCA != nullptr, ""); */
   DEBUG_ONLY(Block* LCA_orig = LCA);
 
   // Compute the alias index.  Loads and stores with different alias indices
   // do not need anti-dependence edges.
   int load_alias_idx = C->get_alias_index(load->adr_type());
+/* #ifdef ASSERT */
+/*   assert(Compile::AliasIdxTop <= load_alias_idx && load_alias_idx < C->num_alias_types(), "Invalid alias index"); */
+/*   if (load_alias_idx == Compile::AliasIdxBot && C->do_aliasing() && */
+/*       (PrintOpto || VerifyAliases || */
+/*        (PrintMiscellaneous && (WizardMode || Verbose)))) { */
+/*     // Load nodes should not consume all of memory. */
+/*     // Reporting a bottom type indicates a bug in adlc. */
+/*     // If some particular type of node validly consumes all of memory, */
+/*     // sharpen the preceding "if" to exclude it, so we can catch bugs here. */
+/*     tty->print_cr("*** Possible Anti-Dependence Bug:  Load consumes all of memory."); */
+/*     load->dump(2); */
+/*     if (VerifyAliases)  assert(load_alias_idx != Compile::AliasIdxBot, ""); */
+/*   } */
+/* #endif */
 
   if (!C->alias_type(load_alias_idx)->is_rewritable()) {
     // It is impossible to spoil this load by putting stores before it,
@@ -1609,7 +1596,7 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
   }
 
   ResourceArea* area = Thread::current()->resource_area();
-  DefUseMemStatesQueue worklist_def_use_mem_states(area); // prior memory state to store and possible-def to explore
+  DefUseMemStatesQueueNew worklist_def_use_mem_states(area); // prior memory state to store and possible-def to explore
   Node_List non_early_stores(area); // all relevant stores outside of early
   bool must_raise_LCA = false;
 
@@ -1622,6 +1609,7 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
   // the same block as 'load', we insert an anti-dependence
   // edge load->store.
 
+  // TODO
   // The relevant stores "nearby" the load consist of a tree rooted
   // at initial_mem, with internal nodes of type MergeMem.
   // Therefore, the branches visited by the worklist are of this form:
@@ -1632,47 +1620,26 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
 
   Node* initial_mem = load->in(MemNode::Memory);
 
-  // We don't optimize the memory graph for pinned loads, so we may need to raise the
-  // root of our search tree through the corresponding slices of MergeMem nodes to
-  // get to the node that really creates the memory state for this slice.
-  if (load_alias_idx >= Compile::AliasIdxRaw) {
-    while (initial_mem->is_MergeMem()) {
-      MergeMemNode* mm = initial_mem->as_MergeMem();
+  worklist_def_use_mem_states.push(nullptr, initial_mem);
+  for (int i = 0; i < worklist_def_use_mem_states.length(); i++) {
+    Node* n = worklist_def_use_mem_states.at(i).use();
+
+    if (n->is_Phi()) {
+      for (uint i = PhiNode::Input, imax = n->req(); i < imax; i++) {
+        worklist_def_use_mem_states.push(nullptr, n->in(i));
+      }
+    } else if (n->is_MergeMem() && load_alias_idx >= Compile::AliasIdxRaw) {
+      // We don't optimize the memory graph for pinned loads, so we may need to
+      // raise the initial memory states of our search tree through the
+      // corresponding slices of MergeMem nodes to get to the nodes that really
+      // creates the memory state for this slice.
+      MergeMemNode* mm = n->as_MergeMem();
       Node* p = mm->memory_at(load_alias_idx);
       if (p != mm->base_memory()) {
-        initial_mem = p;
-      } else {
-        break;
+        worklist_def_use_mem_states.push(nullptr, p);
       }
     }
   }
-
-  worklist_def_use_mem_states.push(nullptr, initial_mem);
-  Block* initial_mem_block = get_block_for_node(initial_mem);
-  if (load->in(0) && initial_mem_block != nullptr) {
-    // If the load has an explicit control input and initial_mem has a block,
-    // walk up the dominator tree from the early block to the initial memory
-    // block. If we in a block find memory Phi(s) that can alias initial_mem,
-    // these are also potential initial memory states and there may be further
-    // required anti dependences due to them.
-    assert(initial_mem_block->dominates(early), "invariant");
-    Block* b = early;
-    // Stop searching when we run out of dominators (b != nullptr) or when we
-    // step past the initial memory block (b != initial_mem_block->_idom).
-    while (b != nullptr && b != initial_mem_block->_idom) {
-      if (b == initial_mem_block && !initial_mem->is_Phi()) {
-        break;
-      }
-      for (uint i = 0; i < b->number_of_nodes(); ++i) {
-        Node* n = b->get_node(i);
-        if (n->is_memory_phi() && C->can_alias(n->adr_type(), load_alias_idx)) {
-          worklist_def_use_mem_states.push(nullptr, n);
-        }
-      }
-      b = b->_idom;
-    }
-  }
-  GrowableArray<Block*> raise_LCA_mark;
   while (worklist_def_use_mem_states.is_nonempty()) {
     // Examine a nearby store to see if it might interfere with our load.
     Node* def_mem_state = worklist_def_use_mem_states.top_def();
@@ -1681,27 +1648,78 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
 
     uint op = use_mem_state->Opcode();
 
+/* #ifdef ASSERT */
+/*     // CacheWB nodes are peculiar in a sense that they both are anti-dependent and produce memory. */
+/*     // Allow them to be treated as a store. */
+/*     bool is_cache_wb = false; */
+/*     if (use_mem_state->is_Mach()) { */
+/*       int ideal_op = use_mem_state->as_Mach()->ideal_Opcode(); */
+/*       is_cache_wb = (ideal_op == Op_CacheWB); */
+/*     } */
+/*     assert(!use_mem_state->needs_anti_dependence_check() || is_cache_wb, "no loads"); */
+/* #endif */
+
+    // There are Phi memory nodes for which initial memory is live on _all_
+    // inputs. For such Phis, it is not enough to raise the LCA above relevant
+    // inputs (see further below), and we must continue searching for anti
+    // dependences below the Phi.
+    //
+    // We can easily determine a superset of these Phis by recognizing that
+    // there must be a path from at least one initial memory state to each
+    // input of such a Phi. Note that this is an overapproximation: there are
+    // Phis which have incoming paths from initial memory on each input but
+    // where initial memory is _not_ actually live on each input. While
+    // unnecessary, it is still sound to continue searching through such Phis.
+    // The only possible issue that can arise from this is that we may add
+    // incorrect anti-dependence edges to the early block, which cause circular
+    // dependences and make the early block unschedulable. If we would simply
+    // continue through _all_ Phis that we encounter, this is the issue we
+    // encounter.
+    //
+    // TODO Revise
+    //
+    // We _only_ set Phi nodes to visited when we continue through them.
+    // This ensures that we reconsider Phis whenever we have updated inputs to
+    // them.
+    bool continue_through_phi = false;
+    if (op == Op_Phi && def_mem_state != nullptr
+        && !worklist_def_use_mem_states.has_visited_def(use_mem_state)) {
+      continue_through_phi = true;
+      for (uint i = PhiNode::Input, imax = use_mem_state->req(); i < imax; i++) {
+        Node* in = use_mem_state->in(i);
+        if (!worklist_def_use_mem_states.has_visited_def(in)) {
+          // We have at least one unvisited Phi input and can therefore, at
+          // least yet, not continue through the Phi.
+          continue_through_phi = false;
+          break;
+        }
+      }
+    }
 
     // MergeMems do not directly have anti-deps.
     // Treat them as internal nodes in a forward tree of memory states,
     // the leaves of which are each a 'possible-def'.
     if (def_mem_state == nullptr    // root (exclusive) of tree we are searching
         || op == Op_MergeMem    // internal node of tree we are searching
+        || continue_through_phi
         ) {
-      def_mem_state = use_mem_state;   // It's not a possibly interfering store.
-      if (use_mem_state == initial_mem)
-        initial_mem = nullptr;  // only process initial memory once
-
-      for (DUIterator_Fast imax, i = def_mem_state->fast_outs(imax); i < imax; i++) {
-        use_mem_state = def_mem_state->fast_out(i);
-        if (use_mem_state->needs_anti_dependence_check()) {
-          // use_mem_state is also a kind of load (i.e. needs_anti_dependence_check), and it is not a memory state
+      if (worklist_def_use_mem_states.has_visited_def(use_mem_state)) {
+        continue; // Already visited
+      }
+      worklist_def_use_mem_states.mark_visited_def(use_mem_state);
+      for (DUIterator_Fast imax, i = use_mem_state->fast_outs(imax); i < imax; i++) {
+        Node* out = use_mem_state->fast_out(i);
+        if (out->needs_anti_dependence_check()) {
+          // out is also a kind of load (i.e. needs_anti_dependence_check), and it is not a memory state
           // modifying node (store, Phi or MergeMem). Hence, load can't be anti dependent on this node.
           continue;
         }
-        worklist_def_use_mem_states.push(def_mem_state, use_mem_state);
+        worklist_def_use_mem_states.push(use_mem_state, out);
       }
-      continue;
+      if (def_mem_state == nullptr || op == Op_MergeMem) {
+        // No more work to do for initial memory or MergeMem, continue.
+        continue;
+      }
     }
 
     if (op == Op_MachProj || op == Op_Catch)   continue;
@@ -1722,7 +1740,9 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
         // _method.  Can't do this optimization for Native calls because
         // they CAN write to Java memory.
         if (mstore->ideal_Opcode() == Op_CallStaticJava) {
+          /* assert(mstore->is_MachSafePoint(), ""); */
           MachSafePointNode* ms = (MachSafePointNode*) mstore;
+          /* assert(ms->is_MachCallJava(), ""); */
           MachCallJavaNode* mcj = (MachCallJavaNode*) ms;
           if (mcj->_method == nullptr) {
             // These runtime calls do not write to Java visible memory
@@ -1753,11 +1773,10 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
     // earliest legal block for 'load'.  In the latter case,
     // immediately insert an anti-dependence edge.
     Block* store_block = get_block_for_node(use_mem_state);
+    /* assert(store_block != nullptr, "unused killing projections skipped above"); */
 
     if (use_mem_state->is_Phi()) {
-      // Loop-phis need to raise load before input. (Other phis are treated
-      // as store below.)
-      //
+
       // 'load' uses memory which is one (or more) of the Phi's inputs.
       // It must be scheduled not before the Phi, but rather before
       // each of the relevant Phi inputs.
@@ -1778,15 +1797,17 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
             // we do not need a precedence edge between the Phi and 'load'
             // since the load will be forced into a block preceding the Phi.
             /* pred_block->set_raise_LCA_mark(load_index); */
-            must_raise_LCA = true;
-            raise_LCA_mark.push(pred_block);
             verifier.LCA_marks.set(pred_block->_pre_order);
+            /* assert(!LCA_orig->dominates(pred_block) || */
+            /*        early->dominates(pred_block), "early is high enough"); */
+            must_raise_LCA = true;
           } else {
             // anti-dependent upon PHI pinned below 'early', no edge needed
             LCA = early;             // but can not schedule below 'early'
           }
         }
       }
+      /* assert(found_match, "no worklist bug"); */
     } else if (store_block != early) {
       // 'store' is between the current LCA and earliest possible block.
       // Label its block, and decide later on how to raise the LCA
@@ -1798,7 +1819,6 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
       if (LCA != early && !unrelated_load_in_store_null_block(use_mem_state, load)) {
         /* store_block->set_raise_LCA_mark(load_index); */
         verifier.LCA_marks.set(store_block->_pre_order);
-        raise_LCA_mark.push(store_block);
         must_raise_LCA = true;
         non_early_stores.push(use_mem_state);
       }
@@ -1806,11 +1826,12 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
       // Found a possibly-interfering store in the load's 'early' block.
       // This means 'load' cannot sink at all in the dominator tree.
       // Add an anti-dep edge, and squeeze 'load' into the highest block.
+      /* assert(use_mem_state != load->find_exact_control(load->in(0)), "dependence cycle found"); */
       if (verify) {
+        /* assert(use_mem_state->find_edge(load) != -1 || unrelated_load_in_store_null_block(use_mem_state, load), */
+        /*        "missing precedence edge"); */
       } else {
-        if (UseNewCode2) {
-          use_mem_state->add_prec(load);
-        }
+        /* use_mem_state->add_prec(load); */
         verifier.anti_dependences.set(use_mem_state->_idx);
       }
       LCA = early;
@@ -1841,23 +1862,26 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
   // Insert anti-dependence edges from 'load' to each store
   // in the non-early LCA block.
   // Mine the non_early_stores list for such stores.
-  if (raise_LCA_mark.contains(LCA)) {
+  if (verifier.LCA_marks.test(LCA->_pre_order)) {
     while (non_early_stores.size() > 0) {
       Node* store = non_early_stores.pop();
       Block* store_block = get_block_for_node(store);
       if (store_block == LCA) {
         // add anti_dependence from store to load in its own block
+        /* assert(store != load->find_exact_control(load->in(0)), "dependence cycle found"); */
         if (verify) {
+          /* assert(store->find_edge(load) != -1, "missing precedence edge"); */
         } else {
-          if (UseNewCode2) {
-            store->add_prec(load);
-          }
+          /* store->add_prec(load); */
           verifier.anti_dependences.set(store->_idx);
         }
       } else {
+        /* assert(store_block->raise_LCA_mark() == load_index, "block was marked"); */
         // Any other stores we found must be either inside the new LCA
         // or else outside the original LCA.  In the latter case, they
         // did not interfere with any use of 'load'.
+        /* assert(LCA->dominates(store_block) */
+        /*        || !LCA_orig->dominates(store_block), "no stray stores"); */
       }
     }
   }
@@ -1868,6 +1892,50 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
 
 }
 
+void verify_debug(Node* load, Verifier& old, Verifier& new1, Verifier& new2, Verifier& new3) {
+  if (UseNewCode && Compile::current()->is_method_compilation()) {
+    static int diffs = 0;
+    static int total = 0;
+    bool diff = false;
+    if (old.LCA != new1.LCA || new1.LCA != new2.LCA || new2.LCA != new3.LCA) {
+      diff = true;
+      tty->print_cr("LCAs differ. Old: %u, New1: %u, New2: %u, New3: %u",
+          old.LCA->_pre_order, new1.LCA->_pre_order,
+          new2.LCA->_pre_order, new3.LCA->_pre_order);
+      tty->print("Old marks: "); old.LCA_marks.dump(); tty->cr();
+      tty->print("New1 marks: "); new1.LCA_marks.dump(); tty->cr();
+      tty->print("New2 marks: "); new2.LCA_marks.dump(); tty->cr();
+      tty->print("New3 marks: "); new3.LCA_marks.dump(); tty->cr();
+      tty->print_cr("LCA dom depth: %d", old.LCA->_dom_depth);
+      tty->print_cr("LCA_new dom depth: %d", new1.LCA->_dom_depth);
+      tty->print_cr("LCA_new2 dom depth: %d", new2.LCA->_dom_depth);
+      tty->print_cr("LCA_new3 dom depth: %d", new3.LCA->_dom_depth);
+    }
+    if (!(old.anti_dependences == new1.anti_dependences) ||
+        !(new1.anti_dependences == new2.anti_dependences) ||
+        !(new2.anti_dependences == new3.anti_dependences)) {
+      diff = true;
+      tty->print_cr("Anti dependence edges differ.");
+      tty->print("Old: "); old.anti_dependences.dump(); tty->cr();
+      tty->print("New1: "); new1.anti_dependences.dump(); tty->cr();
+      tty->print("New2: "); new2.anti_dependences.dump(); tty->cr();
+      tty->print("New3: "); new3.anti_dependences.dump(); tty->cr();
+    }
+    if(!(new1.initial_mems == new2.initial_mems)) {
+      diff = true;
+      tty->print_cr("Initial mems differ");
+      tty->print("New1: "); new1.initial_mems.dump(); tty->cr();
+      tty->print("New2: "); new2.initial_mems.dump(); tty->cr();
+    }
+    total++;
+    if (diff) {
+      diffs++;
+      tty->print_cr("Load: %u", load->_idx);
+      tty->print_cr("Diffs: %i, Total: %i", diffs, total);
+      tty->print_cr("---------------------------------");
+    }
+  }
+}
 
 //--------------------------insert_anti_dependences---------------------------
 // A load may need to witness memory that nearby stores can overwrite.

@@ -499,7 +499,6 @@ class PhaseCFG : public Phase {
   // Used when building the CFG and creating end nodes for blocks.
   MachNode* _goto;
 
-  bool needs_anti_dependence_edge(Node* load, Node* store, int load_alias_idx);
   Block* insert_anti_dependences_new1(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
   Block* insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
   Block* insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
