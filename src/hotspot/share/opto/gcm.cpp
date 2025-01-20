@@ -1619,6 +1619,7 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
   // The anti-dependence constraints apply only to the fringe of this tree.
 
   Node* initial_mem = load->in(MemNode::Memory);
+  Block* initial_mem_block = get_block_for_node(initial_mem);
 
   worklist_def_use_mem_states.push(nullptr, initial_mem);
   for (int i = 0; i < worklist_def_use_mem_states.length(); i++) {
@@ -1659,40 +1660,15 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
 /*     assert(!use_mem_state->needs_anti_dependence_check() || is_cache_wb, "no loads"); */
 /* #endif */
 
-    // There are Phi memory nodes for which initial memory is live on _all_
-    // inputs. For such Phis, it is not enough to raise the LCA above relevant
-    // inputs (see further below), and we must continue searching for anti
-    // dependences below the Phi.
-    //
-    // We can easily determine a superset of these Phis by recognizing that
-    // there must be a path from at least one initial memory state to each
-    // input of such a Phi. Note that this is an overapproximation: there are
-    // Phis which have incoming paths from initial memory on each input but
-    // where initial memory is _not_ actually live on each input. While
-    // unnecessary, it is still sound to continue searching through such Phis.
-    // The only possible issue that can arise from this is that we may add
-    // incorrect anti-dependence edges to the early block, which cause circular
-    // dependences and make the early block unschedulable. If we would simply
-    // continue through _all_ Phis that we encounter, this is the issue we
-    // encounter.
-    //
-    // TODO Revise
-    //
-    // We _only_ set Phi nodes to visited when we continue through them.
-    // This ensures that we reconsider Phis whenever we have updated inputs to
-    // them.
+    Block* store_block = get_block_for_node(use_mem_state);
     bool continue_through_phi = false;
-    if (op == Op_Phi && def_mem_state != nullptr
+    if (op == Op_Phi && def_mem_state != nullptr && initial_mem_block != nullptr
         && !worklist_def_use_mem_states.has_visited_def(use_mem_state)) {
-      continue_through_phi = true;
-      for (uint i = PhiNode::Input, imax = use_mem_state->req(); i < imax; i++) {
-        Node* in = use_mem_state->in(i);
-        if (!worklist_def_use_mem_states.has_visited_def(in)) {
-          // We have at least one unvisited Phi input and can therefore, at
-          // least yet, not continue through the Phi.
-          continue_through_phi = false;
-          break;
-        }
+      if (store_block != initial_mem_block && store_block->dominates(initial_mem_block)) {
+        continue_through_phi = true;
+      }
+      if (store_block == initial_mem_block && initial_mem->is_Phi()) {
+        continue_through_phi = true;
       }
     }
 
@@ -1716,10 +1692,11 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
         }
         worklist_def_use_mem_states.push(use_mem_state, out);
       }
-      if (def_mem_state == nullptr || op == Op_MergeMem) {
-        // No more work to do for initial memory or MergeMem, continue.
-        continue;
-      }
+      continue;
+      /* if (def_mem_state == nullptr || op == Op_MergeMem) { */
+      /*   // No more work to do for initial memory or MergeMem, continue. */
+      /*   continue; */
+      /* } */
     }
 
     if (op == Op_MachProj || op == Op_Catch)   continue;
@@ -1772,7 +1749,6 @@ Block* PhaseCFG::insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& 
     // or else observe that 'store' is all the way up in the
     // earliest legal block for 'load'.  In the latter case,
     // immediately insert an anti-dependence edge.
-    Block* store_block = get_block_for_node(use_mem_state);
     /* assert(store_block != nullptr, "unused killing projections skipped above"); */
 
     if (use_mem_state->is_Phi()) {
