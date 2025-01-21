@@ -769,6 +769,9 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     }
   }
   worklist_def_use_mem_states.push(nullptr, initial_mem);
+  Node_List anti_deps;
+  Node_List def_dom_phi;
+  Node_List use_dom_phi;
   while (worklist_def_use_mem_states.is_nonempty()) {
     // Examine a nearby store to see if it might interfere with our load.
     Node* def_mem_state = worklist_def_use_mem_states.top_def();
@@ -880,6 +883,8 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
       DEBUG_ONLY(bool found_match = false);
       for (uint j = PhiNode::Input, jmax = use_mem_state->req(); j < jmax; j++) {
         if (use_mem_state->in(j) == def_mem_state) {   // Found matching input?
+          def_dom_phi.push(def_mem_state);
+          use_dom_phi.push(use_mem_state);
           DEBUG_ONLY(found_match = true);
           Block* pred_block = get_block_for_node(store_block->pred(j));
           if (pred_block != early) {
@@ -920,6 +925,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
                "missing precedence edge");
       } else {
         use_mem_state->add_prec(load);
+        anti_deps.push(use_mem_state);
       }
       LCA = early;
       // This turns off the process of gathering non_early_stores.
@@ -960,6 +966,7 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
           assert(store->find_edge(load) != -1, "missing precedence edge");
         } else {
           store->add_prec(load);
+          anti_deps.push(store);
         }
       } else {
         assert(store_block->raise_LCA_mark() == load_index, "block was marked");
@@ -970,6 +977,22 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
                || !LCA_orig->dominates(store_block), "no stray stores");
       }
     }
+  }
+
+  int static count = 0;
+  int static total = 0;
+  total++;
+  if (UseNewCode && LCA_orig != LCA) {
+    count++;
+    tty->print_cr("LCA diff: %f%%", (double)count/(double)total * 100.0);
+    tty->print_cr("early: %d", early->_pre_order);
+    tty->print_cr("LCA_orig: %d", LCA_orig->_pre_order);
+    tty->print_cr("LCA: %d", LCA->_pre_order);
+    tty->print_cr("load: %d", load->_idx);
+    tty->print("anti_deps: "); anti_deps.dump_simple(); tty->cr();
+    tty->print("def_dom_phi: "); def_dom_phi.dump_simple(); tty->cr();
+    tty->print("use_dom_phi: "); use_dom_phi.dump_simple(); tty->cr();
+    tty->print_cr("-------------------");
   }
 
   // Return the highest block containing stores; any stores
