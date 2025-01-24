@@ -381,6 +381,10 @@ void PhaseChaitin::Register_Allocate() {
   PhaseIFG ifg(&live_arena);
   _ifg = &ifg;
 
+  if (UseNewCode && C->is_method_compilation()) {
+    dump();
+  }
+
   // Come out of SSA world to the Named world.  Assign (virtual) registers to
   // Nodes.  Use the same register for all inputs and the output of PhiNodes
   // - effectively ending SSA form.  This requires either coalescing live
@@ -424,6 +428,10 @@ void PhaseChaitin::Register_Allocate() {
     _live = &live;
   }
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_INITIAL_LIVENESS");
+    dump();
+  }
   C->print_method(PHASE_INITIAL_LIVENESS, 4);
 
   // Create the interference graph using virtual copies
@@ -466,6 +474,10 @@ void PhaseChaitin::Register_Allocate() {
     _live = &live;
   }
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_AGGRESSIVE_COALESCING");
+    dump();
+  }
   C->print_method(PHASE_AGGRESSIVE_COALESCING, 4);
 
   // Build physical interference graph
