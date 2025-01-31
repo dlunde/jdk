@@ -499,9 +499,10 @@ class PhaseCFG : public Phase {
   // Used when building the CFG and creating end nodes for blocks.
   MachNode* _goto;
 
-  Block* insert_anti_dependences_new1(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
-  Block* insert_anti_dependences_new2(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
-  Block* insert_anti_dependences_new3(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
+  bool needs_anti_dependence(Node* use_mem_state, Node* load, int load_alias_idx, uint op);
+  Block* insert_anti_dependences_new_dominator(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
+  Block* insert_anti_dependences_new_memory_graph(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
+  Block* insert_anti_dependences_new_experimental(Block* LCA, Node* load, Verifier& verifier, bool verify = false);
   Block* insert_anti_dependences(Block* LCA, Node* load, bool verify = false);
   void verify_anti_dependences(Block* LCA, Node* load) const {
     assert(LCA == get_block_for_node(load), "should already be scheduled");
