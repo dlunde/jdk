@@ -2376,8 +2376,38 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
       }
     }
 
+    // Walk upwards through MergeMems and Phis. If there is a path to self, we
+    // know splitting Phis through memory merges may lead to non-termination.
+    bool may_reach_self = false;
+    if (UseNewCode && !saw_self && adr_type() == TypePtr::BOTTOM) {
+      ResourceMark rm;
+      VectorSet visited;
+      Node_List worklist;
+      worklist.push(this);
+      visited.set(this->_idx);
+      while (worklist.size() > 0) {
+        Node* n = worklist.pop();
+        for (uint i = 1; i < n->req(); i++) {
+          Node* input = n->in(i);
+          if (input == this) {
+            may_reach_self = true;
+            break;
+          }
+          if (input != nullptr
+              && (input->is_MergeMem() || input->is_memory_phi())
+              && !visited.test_set(input->_idx)) {
+            worklist.push(input);
+          }
+        }
+      }
+    }
+
     // This restriction is temporarily necessary to ensure termination:
-    if (!saw_self && adr_type() == TypePtr::BOTTOM)  merge_width = 0;
+    if (UseNewCode) {
+      if (!saw_self && may_reach_self)  merge_width = 0;
+    } else {
+      if (!saw_self && adr_type() == TypePtr::BOTTOM)  merge_width = 0;
+    }
 
     if (merge_width > Compile::AliasIdxRaw) {
       // found at least one non-empty MergeMem
@@ -2468,9 +2498,33 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
         { // (Extra braces to hide mms.)
           for (MergeMemStream mms(result); mms.next_non_empty(); ) {
             Node* phi = mms.memory();
-            for (uint i = 1; i < req(); ++i) {
-              if (phi->in(i) == this)  phi->set_req(i, phi);
-            }
+            /* if (UseNewCode && phi == mms.base_memory()) { */
+            /*   for (uint i = 1; i < req(); ++i) { */
+            /*     Node* ii = phi->in(i); */
+            /*     bool stop = false; */
+            /*     while (ii->is_MergeMem()) { */
+            /*       MergeMemNode* n = ii->as_MergeMem(); */
+            /*       for (MergeMemStream mms(result, n); mms.next_non_empty2(); ) { */
+            /*         if (mms.is_empty()) { */
+            /*           stop = true; */
+            /*           break; */
+            /*         } */
+            /*       } */
+            /*       if (stop) { */
+            /*         break; */
+            /*       } else { */
+            /*         ii = n->base_memory(); */
+            /*       } */
+            /*     } */
+            /*     if (ii == this) { */
+            /*       phi->set_req(i, phi); */
+            /*     } */
+            /*   } */
+            /* } else { */
+              for (uint i = 1; i < req(); ++i) {
+                if (phi->in(i) == this)  phi->set_req(i, phi);
+              }
+            /* } */
           }
         }
         // Already replace this phi node to cut it off from the graph to not interfere in dead loop checks during the
