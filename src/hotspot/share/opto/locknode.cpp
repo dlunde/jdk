@@ -42,8 +42,7 @@ BoxLockNode::BoxLockNode(int slot)
     : Node(Compile::current()->root()), _slot(slot),
 #ifdef ASSERT
       // In debug mode, signal that the register mask is constant.
-      _inmask(OptoReg::stack2reg(_slot), Compile::current()->comp_arena(),
-              true),
+      _inmask(OptoReg::stack2reg(_slot), Compile::current()->comp_arena(), true),
 #else
       _inmask(OptoReg::stack2reg(_slot), Compile::current()->comp_arena()),
 #endif

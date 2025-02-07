@@ -1587,12 +1587,12 @@ uint PhaseChaitin::Select( ) {
     // capture allstackedness flag before mask is hacked
     const int is_allstack = lrg->mask().is_AllStack();
 
-  // Yeah, yeah, yeah, I know, I know.  I can refactor this
-  // to avoid the GOTO, although the refactored code will not
-  // be much clearer.  We arrive here IFF we have a stack-based
-  // live range that cannot color in the current chunk, and it
-  // has to move into the next free stack chunk.
-  retry_next_chunk:
+    // Yeah, yeah, yeah, I know, I know.  I can refactor this
+    // to avoid the GOTO, although the refactored code will not
+    // be much clearer.  We arrive here IFF we have a stack-based
+    // live range that cannot color in the current chunk, and it
+    // has to move into the next free stack chunk.
+    retry_next_chunk:
 
     // Remove neighbor colors
     IndexSet *s = _ifg->neighbors(lidx);
@@ -1673,7 +1673,7 @@ uint PhaseChaitin::Select( ) {
       // Record selected register
       lrg->set_reg(reg);
 
-      if( reg >= _max_reg ) {     // Compute max register limit
+      if (reg >= _max_reg) {     // Compute max register limit
         _max_reg = OptoReg::add(reg, 1);
       }
 
@@ -1738,6 +1738,7 @@ uint PhaseChaitin::Select( ) {
       }
 #endif
     } // end spill case
+
   }
 
   return spill_reg-LRG::SPILL_REG;      // Return number of spills
