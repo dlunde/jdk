@@ -2381,7 +2381,8 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     // is a path to self, we know splitting Phis through memory merges may lead
     // to non-termination.
     bool may_reach_self = false;
-    if (UseNewCode && !saw_self && adr_type() == TypePtr::BOTTOM) {
+    if (!saw_self && adr_type() == TypePtr::BOTTOM
+        && merge_width > Compile::AliasIdxRaw) {
       ResourceMark rm;
       VectorSet visited;
       Node_List worklist;
@@ -2418,14 +2419,7 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     }
 
     // This restriction is temporarily necessary to ensure termination:
-    if (!UseNewCode && !UseNewCode2
-        && !saw_self && adr_type() == TypePtr::BOTTOM)  merge_width = 0;
-    if (UseNewCode && !saw_self && may_reach_self)  merge_width = 0;
-    if ((UseNewCode || UseNewCode2) &&
-        !saw_self && adr_type() == TypePtr::BOTTOM &&
-        merge_width > Compile::AliasIdxRaw) {
-      Compile::current()->print_method(PHASE_DEBUG, 1, this);
-    }
+    if (!saw_self && may_reach_self)  merge_width = 0;
 
     if (merge_width > Compile::AliasIdxRaw) {
       // found at least one non-empty MergeMem
