@@ -66,6 +66,7 @@ public class TestGCMLoadPlacement {
         Test3.run();
         Test4.run();
         Test5.run();
+        Test6.run();
     }
 
     static class Test1 {
@@ -229,4 +230,39 @@ public class TestGCMLoadPlacement {
             }
         }
     }
+
+    static class Test6 {
+        static boolean flag;
+        volatile byte volFld;
+        int iFld, iFld2;
+
+        int test() {
+            for (int j = 0; j < 50; ++j) {
+                iFld2 = 0;
+                if (flag) { return 0; }
+
+                for (int k = 0; k < 2000; ++k) {
+                }
+            }
+
+            int res = iFld;
+            for (int i = 0; i < 50; ++i) {
+                volFld = 0;
+                iFld -= 1;
+            }
+            return res;
+        }
+
+        static void run() {
+            Test6 t = new Test6();
+            for (int i = 0; i < 10; i++) {
+                t.iFld = 0;
+                int res = t.test();
+                if (res != 0) {
+                    throw new RuntimeException("Unexpected result: " + res);
+                }
+            }
+        }
+    }
+
 }
