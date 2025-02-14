@@ -2398,7 +2398,7 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     // MergeMem leads to non-termination. We check for non-termination below.
     bool terminates = true;
     // Only check for non-termination if necessary.
-    if (!saw_self && adr_type() == TypePtr::BOTTOM
+    if (UseNewCode && !saw_self && adr_type() == TypePtr::BOTTOM
         && merge_width > Compile::AliasIdxRaw) {
       ResourceMark rm;
       VectorSet visited;
@@ -2438,7 +2438,8 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     }
 
     // Do not proceed in case of non-termination.
-    if (!saw_self && !terminates) {
+    if (!UseNewCode && !saw_self && adr_type() == TypePtr::BOTTOM)  merge_width = 0;
+    if (UseNewCode && !saw_self && !terminates) {
       merge_width = 0;
     }
 
