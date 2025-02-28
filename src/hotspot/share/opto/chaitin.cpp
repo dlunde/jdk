@@ -521,6 +521,10 @@ void PhaseChaitin::Register_Allocate() {
       _live = &live;
     }
 
+    if (UseNewCode && C->is_method_compilation()) {
+      tty->print_cr("<--- PHASE_INITIAL_SPILLING");
+      dump();
+    }
     C->print_method(PHASE_INITIAL_SPILLING, 4);
 
     build_ifg_physical(&live_arena);
@@ -538,6 +542,10 @@ void PhaseChaitin::Register_Allocate() {
     _lrg_map.compress_uf_map_for_nodes();
 
     if (OptoCoalesce) {
+      if (UseNewCode && C->is_method_compilation()) {
+        tty->print_cr("<--- PHASE_CONSERVATIVE_COALESCING");
+        dump();
+      }
       C->print_method(PHASE_CONSERVATIVE_COALESCING, 4);
     }
 
@@ -604,6 +612,10 @@ void PhaseChaitin::Register_Allocate() {
       _live = &live;
     }
 
+    if (UseNewCode && C->is_method_compilation()) {
+      tty->print_cr("<--- PHASE_ITERATIVE_SPILLING");
+      dump();
+    }
     C->print_method(PHASE_ITERATIVE_SPILLING, 4);
 
     must_spill = build_ifg_physical(&live_arena);
@@ -621,6 +633,10 @@ void PhaseChaitin::Register_Allocate() {
     _lrg_map.compress_uf_map_for_nodes();
 
     if (OptoCoalesce) {
+      if (UseNewCode && C->is_method_compilation()) {
+        tty->print_cr("<--- PHASE_CONSERVATIVE_COALESCING");
+        dump();
+      }
       C->print_method(PHASE_CONSERVATIVE_COALESCING, 4);
     }
 
@@ -638,6 +654,10 @@ void PhaseChaitin::Register_Allocate() {
     spills = Select();
   }
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_AFTER_ITERATIVE_SPILLING");
+    dump();
+  }
   C->print_method(PHASE_AFTER_ITERATIVE_SPILLING, 4);
 
   // Count number of Simplify-Select trips per coloring success.
@@ -647,11 +667,19 @@ void PhaseChaitin::Register_Allocate() {
   // Peephole remove copies
   post_allocate_copy_removal();
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_POST_ALLOCATION_COPY_REMOVAL");
+    dump();
+  }
   C->print_method(PHASE_POST_ALLOCATION_COPY_REMOVAL, 4);
 
   // Merge multidefs if multiple defs representing the same value are used in a single block.
   merge_multidefs();
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_MERGE_MULTI_DEFS");
+    dump();
+  }
   C->print_method(PHASE_MERGE_MULTI_DEFS, 4);
 
 #ifdef ASSERT
@@ -682,6 +710,10 @@ void PhaseChaitin::Register_Allocate() {
   // Convert CISC spills
   fixup_spills();
 
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("<--- PHASE_FIX_UP_SPILLS");
+    dump();
+  }
   C->print_method(PHASE_FIX_UP_SPILLS, 4);
 
   // Log regalloc results
