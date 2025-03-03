@@ -2468,10 +2468,12 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
     // are two Phis involved. Repeatedly splitting the Phis through the
     // MergeMem leads to non-termination. We check for non-termination below.
     // Only check for non-termination if necessary.
-    if (!split_always_terminates && adr_type() == TypePtr::BOTTOM &&
+    if (UseNewCode && !split_always_terminates && adr_type() == TypePtr::BOTTOM &&
         merge_width > Compile::AliasIdxRaw) {
       split_always_terminates = is_split_through_mergemem_terminating();
     }
+
+    if (!UseNewCode && !split_always_terminates && adr_type() == TypePtr::BOTTOM)  merge_width = 0;
 
     if (merge_width > Compile::AliasIdxRaw) {
       // found at least one non-empty MergeMem
@@ -2503,7 +2505,7 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
             }
           }
         }
-      } else if (split_always_terminates) {
+      } else if (!UseNewCode || split_always_terminates) {
         // If all inputs reference this phi (directly or through data nodes) -
         // it is a dead loop.
         bool saw_safe_input = false;
