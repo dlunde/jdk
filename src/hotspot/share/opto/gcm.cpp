@@ -664,15 +664,23 @@ public:
 
 //--------------------------insert_anti_dependences---------------------------
 // A load may need to witness memory that nearby stores can overwrite.
-// For each nearby store, either insert an "anti-dependence" edge
-// from the load to the store, or else move LCA upward to force the
-// load to (eventually) be scheduled in a block above the store.
+// For each nearby store, either
 //
+//   1. insert an anti-dependence edge from the load to the store, or
+//   2. raise the load's LCA upward to force the load to (eventually) be
+//      scheduled in a block above the store.
+//
+// Anti-dependence edges are necessary to ensure that the load is scheduled
+// before overwriting stores in the load's block. If we instead choose to raise
+// the load's LCA to a block dominating a store, an anti-dependence edge to the
+// store is unnecessary.
+//
+// The load may only schedule in blocks on the dominator tree branch between the load's 
 // Do not add edges to stores on distinct control-flow paths;
-// only add edges to stores which might interfere.
+// only add edges to stores in blocks in between the load's which might interfere.
 //
-// Return the (updated) LCA.  There will not be any possibly interfering
-// store between the load's "early block" and the updated LCA.
+// Return the (updated) LCA.  There are no interfering
+// stores between the load's "early block" and the updated LCA.
 // Any stores in the updated LCA will have new precedence edges
 // back to the load.  The caller is expected to schedule the load
 // in the LCA, in which case the precedence edges will make LCM
@@ -729,9 +737,15 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     }
   }
 
+  // Worklist of prior memory states for stores and possible-def to explore
+  // TODO: Explain def and use
   ResourceArea* area = Thread::current()->resource_area();
-  DefUseMemStatesQueue worklist_def_use_mem_states(area); // prior memory state to store and possible-def to explore
-  Node_List non_early_stores(area); // all relevant stores outside of early
+  DefUseMemStatesQueue worklist_def_use_mem_states(area);
+
+  // All relevant stores outside of early
+  Node_List non_early_stores(area);
+
+  // If we, after the main worklist loop below, must raise the LCA.
   bool must_raise_LCA = false;
 
   // 'load' uses some memory state; look for users of the same state.
@@ -863,9 +877,6 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     assert(store_block != nullptr, "unused killing projections skipped above");
 
     if (use_mem_state->is_Phi()) {
-      // Loop-phis need to raise load before input. (Other phis are treated
-      // as store below.)
-      //
       // 'load' uses memory which is one (or more) of the Phi's inputs.
       // It must be scheduled not before the Phi, but rather before
       // each of the relevant Phi inputs.
