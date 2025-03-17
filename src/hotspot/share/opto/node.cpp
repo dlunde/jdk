@@ -75,11 +75,6 @@ void Node::verify_construction() {
   set_debug_idx(new_debug_idx);
   if (!C->phase_optimize_finished()) {
     // Only check assert during parsing and optimization phase. Skip it while generating code.
-    static uint max_live_nodes = 0;
-    if (UseNewCode && C->live_nodes() > max_live_nodes) {
-      max_live_nodes = C->live_nodes();
-      tty->print_cr("New max_live_nodes: %i", max_live_nodes);
-    }
     assert(C->live_nodes() <= C->max_node_limit(), "Live Node limit exceeded limit");
   }
   if (BreakAtNode != 0 && (_debug_idx == BreakAtNode || (uint64_t)_idx == BreakAtNode)) {
