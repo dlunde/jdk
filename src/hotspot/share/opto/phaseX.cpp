@@ -1024,6 +1024,8 @@ void PhaseIterGVN::optimize() {
     shuffle_worklist();
   }
 
+  uint max_live_nodes = 0;
+  uint prev_live_nodes = C->live_nodes();
   uint loop_count = 0;
   // Pull from worklist and transform the node. If the node has changed,
   // update edge info and put uses on worklist.
@@ -1048,7 +1050,22 @@ void PhaseIterGVN::optimize() {
     } else if (!n->is_top()) {
       remove_dead_node(n);
     }
+    if (UseNewCode2) {
+      if (C->live_nodes() > max_live_nodes) {
+        max_live_nodes = C->live_nodes();
+      }
+      if (ABS((int)prev_live_nodes - (int)C->live_nodes()) > 5000) {
+        tty->print("%u, %u, %u->%u", loop_count, _worklist.size(),
+            prev_live_nodes, C->live_nodes());
+
+        tty->cr();
+      }
+      prev_live_nodes = C->live_nodes();
+    }
     loop_count++;
+  }
+  if (UseNewCode2) {
+    tty->print_cr("Max nodes: %u", max_live_nodes);
   }
   NOT_PRODUCT(verify_PhaseIterGVN();)
   C->print_method(PHASE_AFTER_ITER_GVN, 3);
