@@ -1024,13 +1024,17 @@ void PhaseIterGVN::optimize() {
     shuffle_worklist();
   }
 
-  uint max_live_nodes = 0;
-  uint prev_live_nodes = C->live_nodes();
+  int max_live_nodes = 0;
+  int max_live_node_increment = 0;
+  int prev_live_nodes = C->live_nodes();
+  int max_worklist_size = 0;
+
   uint loop_count = 0;
   // Pull from worklist and transform the node. If the node has changed,
   // update edge info and put uses on worklist.
   while(_worklist.size()) {
     if (C->check_node_count(NodeLimitFudgeFactor * 2, "Out of nodes")) {
+      tty->print_cr("BAILOUT");
       C->print_method(PHASE_AFTER_ITER_GVN, 3);
       return;
     }
@@ -1051,21 +1055,23 @@ void PhaseIterGVN::optimize() {
       remove_dead_node(n);
     }
     if (UseNewCode2) {
-      if (C->live_nodes() > max_live_nodes) {
+      if (C->live_nodes() > (uint)max_live_nodes) {
         max_live_nodes = C->live_nodes();
       }
-      if (ABS((int)prev_live_nodes - (int)C->live_nodes()) > 5000) {
-        tty->print("%u, %u, %u->%u", loop_count, _worklist.size(),
-            prev_live_nodes, C->live_nodes());
-
-        tty->cr();
+      int live_node_increment = (int)C->live_nodes() - prev_live_nodes;
+      if ((live_node_increment > max_live_node_increment)) {
+        max_live_node_increment = live_node_increment;
       }
       prev_live_nodes = C->live_nodes();
+      if (_worklist.size() > (uint)max_worklist_size) {
+        max_worklist_size = _worklist.size();
+      }
     }
     loop_count++;
   }
   if (UseNewCode2) {
-    tty->print_cr("Max nodes: %u", max_live_nodes);
+    tty->print_cr("DATA %d,%d,%d",
+        max_live_nodes, max_live_node_increment, max_worklist_size);
   }
   NOT_PRODUCT(verify_PhaseIterGVN();)
   C->print_method(PHASE_AFTER_ITER_GVN, 3);
