@@ -1693,6 +1693,15 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, UseNewCode3, false, DIAGNOSTIC,                             \
           "Testing Only: Use the new version while testing")                \
                                                                             \
+  product(bool, UseNewCodeBailout, false, DIAGNOSTIC,                       \
+          "Testing Only: Use the new version while testing")                \
+                                                                            \
+  product(bool, UseNewCodeIter, false, DIAGNOSTIC,                          \
+          "Testing Only: Use the new version while testing")                \
+                                                                            \
+  product(bool, UseNewCodeMaxStats, false, DIAGNOSTIC,                      \
+          "Testing Only: Use the new version while testing")                \
+                                                                            \
   develop(bool, UseDebuggerErgo, false,                                     \
           "Debugging Only: Adjust the VM to be more debugger-friendly. "    \
           "Turns on the other UseDebuggerErgo* flags")                      \
