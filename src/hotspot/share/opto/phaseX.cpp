@@ -1038,7 +1038,7 @@ void PhaseIterGVN::optimize() {
     if (C->check_node_count(max_growth, "Out of nodes")) {
       C->print_method(PHASE_AFTER_ITER_GVN, 3);
       if (UseNewCodeBailout) {
-        assert(false, "Bailout");
+        tty->print_cr("BAILOUT");
       }
       return;
     }
