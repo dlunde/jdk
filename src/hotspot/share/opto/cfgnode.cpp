@@ -2577,6 +2577,13 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
         // result in creating an excessive number of new nodes within a single
         // IGVN iteration. We have put the Phi nodes on the IGVN worklist, so
         // they are transformed later on in any case.
+        // now transform the new nodes, and return the mergemem
+        if (!UseNewCode) {
+          for (MergeMemStream mms(result); mms.next_non_empty(); ) {
+            Node* phi = mms.memory();
+            mms.set_memory(phase->transform(phi));
+          }
+        }
         hook->destruct(igvn);
         // Replace self with the result.
         return result;
