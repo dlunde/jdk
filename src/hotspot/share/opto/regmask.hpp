@@ -31,8 +31,11 @@
 #include "utilities/count_trailing_zeros.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "memory/arena.hpp"
+#include "runtime/os.hpp"
 
 class LRG;
+
+extern uint _rm_stress_seed;
 
 // To avoid unbounded RegMask growth, we need to set a limit on the number of
 // stack slots used by BoxLockNodes. We reach this limit by, e.g., deeply
@@ -550,12 +553,18 @@ public:
     assert(_offset == rm._offset, "offset mismatch");
     assert(valid_watermarks() && rm.valid_watermarks(), "sanity");
 
+    _rm_stress_seed = os::next_random(_rm_stress_seed);
+    bool record_statistics = (_rm_stress_seed % 1000) == 0;
+
     // Very common overlap case: _rm_up overlap. Check first to reduce
     // execution time.
     unsigned hwm = MIN2(_hwm, rm._hwm);
     unsigned lwm = MAX2(_lwm, rm._lwm);
     for (unsigned i = lwm; i <= hwm; i++) {
       if (_rm_up(i) & rm._rm_up(i)) {
+        if (UseNewCode && record_statistics) {
+          tty->print_cr("OVERLAP: T1");
+        }
         return true;
       }
     }
@@ -564,6 +573,9 @@ public:
 
     // We are both all-stack
     if (is_AllStack() && rm.is_AllStack()) {
+        if (UseNewCode && record_statistics) {
+          tty->print_cr("OVERLAP: T2");
+        }
       return true;
     }
 
@@ -571,6 +583,9 @@ public:
     if (is_AllStack() && rm._hwm >= _rm_size) {
       for (unsigned i = MAX2(rm._lwm, _rm_size); i <= rm._hwm; i++) {
         if (rm._rm_up(i)) {
+          if (UseNewCode && record_statistics) {
+            tty->print_cr("OVERLAP: T3");
+          }
           return true;
         }
       }
@@ -580,12 +595,18 @@ public:
     if (rm.is_AllStack() && _hwm >= rm._rm_size) {
       for (unsigned i = MAX2(_lwm, rm._rm_size); i <= _hwm; i++) {
         if (_rm_up(i)) {
+          if (UseNewCode && record_statistics) {
+            tty->print_cr("OVERLAP: T4");
+          }
           return true;
         }
       }
     }
 
     // No overlap (also very common)
+    if (UseNewCode && record_statistics) {
+      tty->print_cr("OVERLAP: F");
+    }
     return false;
   }
 

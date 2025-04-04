@@ -30,6 +30,8 @@
 #include "opto/regmask.hpp"
 #include "utilities/powerOfTwo.hpp"
 
+uint _rm_stress_seed = 1;
+
 //------------------------------dump-------------------------------------------
 
 #ifndef PRODUCT
