@@ -1029,6 +1029,9 @@ void PhaseIterGVN::optimize() {
   // update edge info and put uses on worklist.
   while(_worklist.size()) {
     if (C->check_node_count(NodeLimitFudgeFactor * 2, "Out of nodes")) {
+      if (C->failing()) {
+        assert(false, "node count bailout");
+      }
       C->print_method(PHASE_AFTER_ITER_GVN, 3);
       return;
     }
