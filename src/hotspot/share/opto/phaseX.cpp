@@ -1029,13 +1029,18 @@ void PhaseIterGVN::optimize() {
   int prev_live_nodes = C->live_nodes();
   int max_worklist_size = 0;
 
-  const int max_growth = NodeLimitFudgeFactor * 2;
+  // The node count check in the loop below (check_node_count) assumes that we
+  // increase the live node count with at most
+  // max_live_nodes_increase_per_iteration in between checks. If this
+  // assumption does not hold, there is a risk that we exceed the max node
+  // limit in between checks and trigger an assert during node creation.
+  const int max_live_nodes_increase_per_iteration = NodeLimitFudgeFactor * 2;
 
   uint loop_count = 0;
   // Pull from worklist and transform the node. If the node has changed,
   // update edge info and put uses on worklist.
   while(_worklist.size()) {
-    if (C->check_node_count(max_growth, "Out of nodes")) {
+    if (C->check_node_count(max_live_nodes_increase_per_iteration, "Out of nodes")) {
       C->print_method(PHASE_AFTER_ITER_GVN, 3);
       if (UseNewCodeBailout) {
         tty->print_cr("BAILOUT");
@@ -1053,11 +1058,16 @@ void PhaseIterGVN::optimize() {
     if (n->outcnt() != 0) {
       NOT_PRODUCT(const Type* oldtype = type_or_null(n));
       // Do the transformation
-      int before = C->live_nodes();
+      DEBUG_ONLY(int live_nodes_before = C->live_nodes();)
       Node* nn = transform_old(n);
-      int after = C->live_nodes();
-      assert(after - before < max_growth,
-          "excessive node increase in single iteration of IGVN: %d (should be at most %d)", after - before, max_growth);
+      DEBUG_ONLY(int live_nodes_after = C->live_nodes();)
+      // Ensure we did not increase the live node count with more than
+      // max_live_nodes_increase_per_iteration during the call to transform_old
+      DEBUG_ONLY(int increase = live_nodes_after - live_nodes_before;)
+      assert(increase < max_live_nodes_increase_per_iteration,
+             "excessive live node increase in single iteration of IGVN: %d "
+             "(should be at most %d)",
+             increase, max_live_nodes_increase_per_iteration);
       NOT_PRODUCT(trace_PhaseIterGVN(n, nn, oldtype);)
     } else if (!n->is_top()) {
       remove_dead_node(n);

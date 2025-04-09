@@ -2577,7 +2577,7 @@ Node *PhiNode::Ideal(PhaseGVN *phase, bool can_reshape) {
         igvn->set_type(result, result->bottom_type());
 
         // now transform the new nodes, and return the mergemem
-        if (!UseNewCode2) {
+        if (!UseNewCode) {
           for (MergeMemStream mms(result); mms.next_non_empty(); ) {
             Node* phi = mms.memory();
             mms.set_memory(phase->transform(phi));

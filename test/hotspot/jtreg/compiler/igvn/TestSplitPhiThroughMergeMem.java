@@ -36,35 +36,35 @@
  * @run main/othervm -Xbatch
  *                   -XX:CompileCommand=CompileOnly,compiler.itergvn.TestSplitPhiThroughMergeMem::test
  *                   compiler.itergvn.TestSplitPhiThroughMergeMem
- * @run main/othervm compiler.itergvn.TestSplitPhiThroughMergeMem
+ * @run main compiler.itergvn.TestSplitPhiThroughMergeMem
  */
 
 package compiler.itergvn;
 
 public class TestSplitPhiThroughMergeMem {
 
-  public static void main(String[] args) {
-    for (int i = 0; i < 10_000; i++) {
-      int val = i % 50;
-      test(val == 0, val % 10, val % 20);
+    public static void main(String[] args) {
+        for (int i = 0; i < 10_000; i++) {
+            int val = i % 50;
+            test(val == 0, val % 10, val % 20);
+        }
     }
-  }
 
-  static void test(boolean flag, int param1, int param2) {
-    if (flag) {
-      new String("tenth" + param1);
-      new String("eleventh" + param2);
-      new String("fifteenth" + param2);
-      new String("sixteenth" + param1);
-      new String("seventeenth" + param1);
-      new String("nineteenth" + param2);
-      new String("tweenth" + param1);
-      new String("nineth" + param1);
-      new String("nineth" + param1);
-      new String("eighteenth" + param1);
-      new String("abcdef" + param2);
-      new String("ghijklmn" + param1);
-      new String("ghijklmn" + param1);
+    static void test(boolean flag, int param1, int param2) {
+        if (flag) {
+            new String("tenth" + param1);
+            new String("eleventh" + param2);
+            new String("fifteenth" + param2);
+            new String("sixteenth" + param1);
+            new String("seventeenth" + param1);
+            new String("nineteenth" + param2);
+            new String("tweenth" + param1);
+            new String("nineth" + param1);
+            new String("nineth" + param1);
+            new String("eighteenth" + param1);
+            new String("abcdef" + param2);
+            new String("ghijklmn" + param1);
+            new String("ghijklmn" + param1);
+        }
     }
-  }
 }
