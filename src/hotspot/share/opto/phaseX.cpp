@@ -1056,6 +1056,17 @@ void PhaseIterGVN::optimize() {
       // Ensure we did not increase the live node count with more than
       // max_live_nodes_increase_per_iteration during the call to transform_old
       DEBUG_ONLY(int increase = live_nodes_after - live_nodes_before;)
+#ifdef ASSERT
+      if (!(increase < max_live_nodes_increase_per_iteration)) {
+        n->dump(); tty->cr();
+        nn->dump(); tty->cr();
+      }
+      static int max_increase = 0;
+      if (UseNewCode && increase > max_increase) {
+        max_increase = increase;
+        tty->print_cr("NEW_MAX: %d", max_increase);
+      }
+#endif
       assert(increase < max_live_nodes_increase_per_iteration,
              "excessive live node increase in single iteration of IGVN: %d "
              "(should be at most %d)",
