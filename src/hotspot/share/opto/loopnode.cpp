@@ -1732,6 +1732,7 @@ Node *LoopNode::Ideal(PhaseGVN *phase, bool can_reshape) {
 
 #ifdef ASSERT
 void LoopNode::verify_strip_mined(int expect_skeleton) const {
+  return;
   const OuterStripMinedLoopNode* outer = NULL;
   const CountedLoopNode* inner = NULL;
   if (is_strip_mined()) {

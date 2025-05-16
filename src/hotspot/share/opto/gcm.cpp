@@ -603,6 +603,8 @@ Block* PhaseCFG::insert_anti_dependences(Block* LCA, Node* load, bool verify) {
     early = memory_early_block(load, early, this);
   }
 
+  assert(early->dominates(LCA_orig), "precondition failed");
+
   ResourceArea *area = Thread::current()->resource_area();
   Node_List worklist_mem(area);     // prior memory state to store
   Node_List worklist_store(area);   // possible-def to explore
