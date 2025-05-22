@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,37 +24,20 @@
  */
 package jdk.internal.classfile.impl;
 
-import java.lang.classfile.constantpool.ConstantPoolException;
+import java.lang.classfile.constantpool.*;
 import java.lang.constant.*;
 import java.lang.invoke.TypeDescriptor;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-import java.lang.classfile.constantpool.ClassEntry;
-import java.lang.classfile.constantpool.ConstantDynamicEntry;
-import java.lang.classfile.constantpool.ConstantPool;
-import java.lang.classfile.constantpool.ConstantPoolBuilder;
-import java.lang.classfile.constantpool.DoubleEntry;
-import java.lang.classfile.constantpool.FieldRefEntry;
-import java.lang.classfile.constantpool.FloatEntry;
-import java.lang.classfile.constantpool.IntegerEntry;
-import java.lang.classfile.constantpool.InterfaceMethodRefEntry;
-import java.lang.classfile.constantpool.InvokeDynamicEntry;
-import java.lang.classfile.constantpool.LongEntry;
-import java.lang.classfile.constantpool.MemberRefEntry;
-import java.lang.classfile.constantpool.MethodHandleEntry;
-import java.lang.classfile.constantpool.MethodRefEntry;
-import java.lang.classfile.constantpool.MethodTypeEntry;
-import java.lang.classfile.constantpool.ModuleEntry;
-import java.lang.classfile.constantpool.NameAndTypeEntry;
-import java.lang.classfile.constantpool.PackageEntry;
-import java.lang.classfile.constantpool.PoolEntry;
-import java.lang.classfile.constantpool.StringEntry;
-import java.lang.classfile.constantpool.Utf8Entry;
 import jdk.internal.access.JavaLangAccess;
 import jdk.internal.access.SharedSecrets;
+import jdk.internal.constant.ClassOrInterfaceDescImpl;
+import jdk.internal.constant.PrimitiveClassDescImpl;
 import jdk.internal.util.ArraysSupport;
 import jdk.internal.vm.annotation.Stable;
+
+import static java.util.Objects.requireNonNull;
 
 public abstract sealed class AbstractPoolEntry {
     /*
@@ -92,11 +75,6 @@ public abstract sealed class AbstractPoolEntry {
         return hash1(PoolEntry.TAG_CLASS, descriptorHash);
     }
 
-    static boolean isArrayDescriptor(Utf8EntryImpl cs) {
-        // Do not throw out-of-bounds for empty strings
-        return !cs.isEmpty() && cs.charAt(0) == '[';
-    }
-
     @SuppressWarnings("unchecked")
     public static <T extends PoolEntry> T maybeClone(ConstantPoolBuilder cp, T entry) {
         if (cp.canWriteDirect(entry.constantPool()))
@@ -123,7 +101,7 @@ public abstract sealed class AbstractPoolEntry {
         return hash;
     }
 
-    public abstract byte tag();
+    public abstract int tag();
 
     public int width() {
         return 1;
@@ -200,7 +178,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_UTF8;
         }
 
@@ -240,72 +218,75 @@ public abstract sealed class AbstractPoolEntry {
          * two-times-three-byte format instead.
          */
         private void inflate() {
-            int singleBytes = JLA.countPositives(rawBytes, offset, rawLen);
+            int singleBytes = JLA.uncheckedCountPositives(rawBytes, offset, rawLen);
             int hash = ArraysSupport.hashCodeOfUnsigned(rawBytes, offset, singleBytes, 0);
             if (singleBytes == rawLen) {
                 this.contentHash = hash;
                 charLen = rawLen;
                 state = State.BYTE;
+            } else {
+                inflateNonAscii(singleBytes, hash);
             }
-            else {
-                char[] chararr = new char[rawLen];
-                int chararr_count = singleBytes;
-                // Inflate prefix of bytes to characters
-                JLA.inflateBytesToChars(rawBytes, offset, chararr, 0, singleBytes);
+        }
 
-                int px = offset + singleBytes;
-                int utfend = offset + rawLen;
-                while (px < utfend) {
-                    int c = (int) rawBytes[px] & 0xff;
-                    switch (c >> 4) {
-                        case 0, 1, 2, 3, 4, 5, 6, 7: {
-                            // 0xxx xxxx
-                            px++;
-                            chararr[chararr_count++] = (char) c;
-                            hash = 31 * hash + c;
-                            break;
-                        }
-                        case 12, 13: {
-                            // 110x xxxx  10xx xxxx
-                            px += 2;
-                            if (px > utfend) {
-                                throw malformedInput(utfend);
-                            }
-                            int char2 = rawBytes[px - 1];
-                            if ((char2 & 0xC0) != 0x80) {
-                                throw malformedInput(px);
-                            }
-                            char v = (char) (((c & 0x1F) << 6) | (char2 & 0x3F));
-                            chararr[chararr_count++] = v;
-                            hash = 31 * hash + v;
-                            break;
-                        }
-                        case 14: {
-                            // 1110 xxxx  10xx xxxx  10xx xxxx
-                            px += 3;
-                            if (px > utfend) {
-                                throw malformedInput(utfend);
-                            }
-                            int char2 = rawBytes[px - 2];
-                            int char3 = rawBytes[px - 1];
-                            if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80)) {
-                                throw malformedInput(px - 1);
-                            }
-                            char v = (char) (((c & 0x0F) << 12) | ((char2 & 0x3F) << 6) | (char3 & 0x3F));
-                            chararr[chararr_count++] = v;
-                            hash = 31 * hash + v;
-                            break;
-                        }
-                        default:
-                            // 10xx xxxx,  1111 xxxx
-                            throw malformedInput(px);
+        private void inflateNonAscii(int singleBytes, int hash) {
+            char[] chararr = new char[rawLen];
+            int chararr_count = singleBytes;
+            // Inflate prefix of bytes to characters
+            JLA.uncheckedInflateBytesToChars(rawBytes, offset, chararr, 0, singleBytes);
+
+            int px = offset + singleBytes;
+            int utfend = offset + rawLen;
+            while (px < utfend) {
+                int c = (int) rawBytes[px] & 0xff;
+                switch (c >> 4) {
+                    case 0, 1, 2, 3, 4, 5, 6, 7: {
+                        // 0xxx xxxx
+                        px++;
+                        chararr[chararr_count++] = (char) c;
+                        hash = 31 * hash + c;
+                        break;
                     }
+                    case 12, 13: {
+                        // 110x xxxx  10xx xxxx
+                        px += 2;
+                        if (px > utfend) {
+                            throw malformedInput(utfend);
+                        }
+                        int char2 = rawBytes[px - 1];
+                        if ((char2 & 0xC0) != 0x80) {
+                            throw malformedInput(px);
+                        }
+                        char v = (char) (((c & 0x1F) << 6) | (char2 & 0x3F));
+                        chararr[chararr_count++] = v;
+                        hash = 31 * hash + v;
+                        break;
+                    }
+                    case 14: {
+                        // 1110 xxxx  10xx xxxx  10xx xxxx
+                        px += 3;
+                        if (px > utfend) {
+                            throw malformedInput(utfend);
+                        }
+                        int char2 = rawBytes[px - 2];
+                        int char3 = rawBytes[px - 1];
+                        if (((char2 & 0xC0) != 0x80) || ((char3 & 0xC0) != 0x80)) {
+                            throw malformedInput(px - 1);
+                        }
+                        char v = (char) (((c & 0x0F) << 12) | ((char2 & 0x3F) << 6) | (char3 & 0x3F));
+                        chararr[chararr_count++] = v;
+                        hash = 31 * hash + v;
+                        break;
+                    }
+                    default:
+                        // 10xx xxxx,  1111 xxxx
+                        throw malformedInput(px);
                 }
-                this.contentHash = hash;
-                charLen = chararr_count;
-                this.chars = chararr;
-                state = State.CHAR;
             }
+            this.contentHash = hash;
+            charLen = chararr_count;
+            this.chars = chararr;
+            state = State.CHAR;
         }
 
         private ConstantPoolException malformedInput(int px) {
@@ -314,9 +295,13 @@ public abstract sealed class AbstractPoolEntry {
 
         @Override
         public Utf8EntryImpl clone(ConstantPoolBuilder cp) {
-            return (state == State.STRING && rawBytes == null)
+            var ret = (state == State.STRING && rawBytes == null)
                    ? (Utf8EntryImpl) cp.utf8Entry(stringValue)
                    : ((SplitConstantPool) cp).maybeCloneUtf8Entry(this);
+            var mySym = this.typeSym;
+            if (ret.typeSym == null && mySym != null)
+                ret.typeSym = mySym;
+            return ret;
         }
 
         @Override
@@ -398,45 +383,13 @@ public abstract sealed class AbstractPoolEntry {
                 return stringValue().equals(u.stringValue());
         }
 
-        /**
-         * Returns if this utf8 entry's content equals a substring
-         * of {@code s} obtained as {@code s.substring(start, end - start)}.
-         * This check avoids a substring allocation.
-         */
-        public boolean equalsRegion(String s, int start, int end) {
-            // start and end values trusted
-            if (state == State.RAW)
-                inflate();
-            int len = charLen;
-            if (len != end - start)
-                return false;
-
-            var sv = stringValue;
-            if (sv != null) {
-                return sv.regionMatches(0, s, start, len);
-            }
-
-            var chars = this.chars;
-            if (chars != null) {
-                for (int i = 0; i < len; i++)
-                    if (chars[i] != s.charAt(start + i))
-                        return false;
-            } else {
-                var bytes = this.rawBytes;
-                for (int i = 0; i < len; i++)
-                    if (bytes[offset + i] != s.charAt(start + i))
-                        return false;
-            }
-            return true;
-        }
-
         @Override
         public boolean equalsString(String s) {
             if (state == State.RAW)
                 inflate();
             switch (state) {
                 case STRING:
-                    return stringValue.equals(s);
+                    return stringValue.equals(requireNonNull(s));
                 case CHAR:
                     if (charLen != s.length() || contentHash != s.hashCode())
                         return false;
@@ -461,14 +414,13 @@ public abstract sealed class AbstractPoolEntry {
 
         @Override
         void writeTo(BufWriterImpl pool) {
-            pool.writeU1(TAG_UTF8);
             if (rawBytes != null) {
-                pool.writeU2(rawLen);
+                pool.writeU1U2(TAG_UTF8, rawLen);
                 pool.writeBytes(rawBytes, offset, rawLen);
             }
             else {
                 // state == STRING and no raw bytes
-                pool.writeUTF(stringValue);
+                pool.writeUtfEntry(stringValue);
             }
         }
 
@@ -487,6 +439,79 @@ public abstract sealed class AbstractPoolEntry {
             typeSym = ret;
             return ret;
         }
+
+        @Override
+        public boolean isFieldType(ClassDesc desc) {
+            var sym = typeSym;
+            if (sym != null) {
+                return sym instanceof ClassDesc cd && cd.equals(desc);
+            }
+
+            // In parsing, Utf8Entry is not even inflated by this point
+            // We can operate on the raw byte arrays, as all ascii are compatible
+            var ret = state == State.RAW
+                    ? rawEqualsSym(desc)
+                    : equalsString(desc.descriptorString());
+            if (ret)
+                this.typeSym = desc;
+            return ret;
+        }
+
+        private boolean rawEqualsSym(ClassDesc desc) {
+            int len = rawLen;
+            if (len < 1) {
+                return false;
+            }
+            int c = rawBytes[offset];
+            if (len == 1) {
+                return desc instanceof PrimitiveClassDescImpl pd && pd.wrapper().basicTypeChar() == c;
+            } else if (c == 'L') {
+                return desc.isClassOrInterface() && equalsString(desc.descriptorString());
+            } else if (c == '[') {
+                return desc.isArray() && equalsString(desc.descriptorString());
+            } else {
+                return false;
+            }
+        }
+
+        boolean mayBeArrayDescriptor() {
+            if (state == State.RAW) {
+                return rawLen > 0 && rawBytes[offset] == '[';
+            } else {
+                return charLen > 0 && charAt(0) == '[';
+            }
+        }
+
+        @Override
+        public boolean isMethodType(MethodTypeDesc desc) {
+            var sym = typeSym;
+            if (sym != null) {
+                return sym instanceof MethodTypeDesc mtd && mtd.equals(desc);
+            }
+
+            // In parsing, Utf8Entry is not even inflated by this point
+            // We can operate on the raw byte arrays, as all ascii are compatible
+            var ret = state == State.RAW
+                    ? rawEqualsSym(desc)
+                    : equalsString(desc.descriptorString());
+            if (ret)
+                this.typeSym = desc;
+            return ret;
+        }
+
+        private boolean rawEqualsSym(MethodTypeDesc desc) {
+            if (rawLen < 3) {
+                return false;
+            }
+            var bytes = rawBytes;
+            int index = offset;
+            int c = bytes[index] | (bytes[index + 1] << Byte.SIZE);
+            if ((desc.parameterCount() == 0) != (c == ('(' | (')' << Byte.SIZE)))) {
+                // heuristic - avoid inflation for no-arg status mismatch
+                return false;
+            }
+            return (c & 0xFF) == '(' && equalsString(desc.descriptorString());
+        }
     }
 
     abstract static sealed class AbstractRefEntry<T extends PoolEntry> extends AbstractPoolEntry {
@@ -502,8 +527,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         void writeTo(BufWriterImpl pool) {
-            pool.writeU1(tag());
-            pool.writeU2(ref1.index());
+            pool.writeU1U2(tag(), ref1.index());
         }
 
         @Override
@@ -532,9 +556,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         void writeTo(BufWriterImpl pool) {
-            pool.writeU1(tag());
-            pool.writeU2(ref1.index());
-            pool.writeU2(ref2.index());
+            pool.writeU1U2U2(tag(), ref1.index(), ref2.index());
         }
 
         @Override
@@ -574,7 +596,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_CLASS;
         }
 
@@ -590,12 +612,34 @@ public abstract sealed class AbstractPoolEntry {
                 return sym;
             }
 
-            if (isArrayDescriptor(ref1)) {
+            if (ref1.mayBeArrayDescriptor()) {
                 sym = ref1.fieldTypeSymbol(); // array, symbol already available
             } else {
                 sym = ClassDesc.ofInternalName(asInternalName()); // class or interface
             }
             return this.sym = sym;
+        }
+
+        @Override
+        public boolean matches(ClassDesc desc) {
+            var sym = this.sym;
+            if (sym != null) {
+                return sym.equals(desc);
+            }
+
+            var ret = rawEqualsSymbol(desc);
+            if (ret)
+                this.sym = desc;
+            return ret;
+        }
+
+        private boolean rawEqualsSymbol(ClassDesc desc) {
+            if (ref1.mayBeArrayDescriptor()) {
+                return desc.isArray() && ref1.isFieldType(desc);
+            } else {
+                return desc instanceof ClassOrInterfaceDescImpl coid
+                        && ref1.equalsString(coid.internalName());
+            }
         }
 
         @Override
@@ -623,7 +667,7 @@ public abstract sealed class AbstractPoolEntry {
             if (hash != 0)
                 return hash;
 
-            return this.hash = hashClassFromUtf8(isArrayDescriptor(ref1), ref1);
+            return this.hash = hashClassFromUtf8(ref1.mayBeArrayDescriptor(), ref1);
         }
     }
 
@@ -634,7 +678,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_PACKAGE;
         }
 
@@ -646,6 +690,11 @@ public abstract sealed class AbstractPoolEntry {
         @Override
         public PackageDesc asSymbol() {
             return PackageDesc.ofInternalName(asInternalName());
+        }
+
+        @Override
+        public boolean matches(PackageDesc desc) {
+            return ref1.equalsString(desc.internalName());
         }
 
         @Override
@@ -665,7 +714,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_MODULE;
         }
 
@@ -677,6 +726,11 @@ public abstract sealed class AbstractPoolEntry {
         @Override
         public ModuleDesc asSymbol() {
             return ModuleDesc.of(asInternalName());
+        }
+
+        @Override
+        public boolean matches(ModuleDesc desc) {
+            return ref1.equalsString(desc.name());
         }
 
         @Override
@@ -697,7 +751,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_NAME_AND_TYPE;
         }
 
@@ -771,7 +825,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_FIELDREF;
         }
 
@@ -789,7 +843,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_METHODREF;
         }
 
@@ -807,7 +861,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_INTERFACE_METHODREF;
         }
 
@@ -864,9 +918,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         void writeTo(BufWriterImpl pool) {
-            pool.writeU1(tag());
-            pool.writeU2(bsmIndex);
-            pool.writeU2(nameAndType.index());
+            pool.writeU1U2U2(tag(), bsmIndex, nameAndType.index());
         }
 
         @Override
@@ -891,6 +943,8 @@ public abstract sealed class AbstractPoolEntry {
             extends AbstractDynamicConstantPoolEntry
             implements InvokeDynamicEntry {
 
+        public @Stable DynamicCallSiteDesc sym;
+
         InvokeDynamicEntryImpl(ConstantPool cpm, int index, int hash, BootstrapMethodEntryImpl bootstrapMethod,
                                    NameAndTypeEntryImpl nameAndType) {
             super(cpm, index, hash, bootstrapMethod, nameAndType);
@@ -903,18 +957,32 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_INVOKE_DYNAMIC;
         }
 
         @Override
         public InvokeDynamicEntry clone(ConstantPoolBuilder cp) {
-            return cp.invokeDynamicEntry(bootstrap(), nameAndType());
+            var ret = (InvokeDynamicEntryImpl) cp.invokeDynamicEntry(bootstrap(), nameAndType());
+            var mySym = this.sym;
+            if (ret.sym == null && mySym != null)
+                ret.sym = mySym;
+            return ret;
+        }
+
+        @Override
+        public DynamicCallSiteDesc asSymbol() {
+            var cache = this.sym;
+            if (cache != null)
+                return cache;
+            return this.sym = InvokeDynamicEntry.super.asSymbol();
         }
     }
 
     public static final class ConstantDynamicEntryImpl extends AbstractDynamicConstantPoolEntry
             implements ConstantDynamicEntry {
+
+        public @Stable DynamicConstantDesc<?> sym;
 
         ConstantDynamicEntryImpl(ConstantPool cpm, int index, int hash, BootstrapMethodEntryImpl bootstrapMethod,
                                      NameAndTypeEntryImpl nameAndType) {
@@ -928,13 +996,25 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_DYNAMIC;
         }
 
         @Override
         public ConstantDynamicEntry clone(ConstantPoolBuilder cp) {
-            return cp.constantDynamicEntry(bootstrap(), nameAndType());
+            var ret = (ConstantDynamicEntryImpl) cp.constantDynamicEntry(bootstrap(), nameAndType());
+            var mySym = this.sym;
+            if (ret.sym == null && mySym != null)
+                ret.sym = mySym;
+            return ret;
+        }
+
+        @Override
+        public DynamicConstantDesc<?> asSymbol() {
+            var cache = this.sym;
+            if (cache != null)
+                return cache;
+            return this.sym = ConstantDynamicEntry.super.asSymbol();
         }
     }
 
@@ -943,6 +1023,7 @@ public abstract sealed class AbstractPoolEntry {
 
         private final int refKind;
         private final AbstractPoolEntry.AbstractMemberRefEntry reference;
+        public @Stable DirectMethodHandleDesc sym;
 
         MethodHandleEntryImpl(ConstantPool cpm, int index, int hash, int refKind, AbstractPoolEntry.AbstractMemberRefEntry
                 reference) {
@@ -959,7 +1040,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_METHOD_HANDLE;
         }
 
@@ -975,7 +1056,14 @@ public abstract sealed class AbstractPoolEntry {
 
         @Override
         public DirectMethodHandleDesc asSymbol() {
-            return MethodHandleDesc.of(
+            var cache = this.sym;
+            if (cache != null)
+                return cache;
+            return computeSymbol();
+        }
+
+        private DirectMethodHandleDesc computeSymbol() {
+            return this.sym = MethodHandleDesc.of(
                     DirectMethodHandleDesc.Kind.valueOf(kind(), reference() instanceof InterfaceMethodRefEntry),
                     ((MemberRefEntry) reference()).owner().asSymbol(),
                     ((MemberRefEntry) reference()).nameAndType().name().stringValue(),
@@ -984,14 +1072,16 @@ public abstract sealed class AbstractPoolEntry {
 
         @Override
         void writeTo(BufWriterImpl pool) {
-            pool.writeU1(TAG_METHOD_HANDLE);
-            pool.writeU1(refKind);
-            pool.writeU2(reference.index());
+            pool.writeU1U1U2(TAG_METHOD_HANDLE, refKind, reference.index());
         }
 
         @Override
         public MethodHandleEntry clone(ConstantPoolBuilder cp) {
-            return cp.methodHandleEntry(refKind, reference);
+            var ret = (MethodHandleEntryImpl) cp.methodHandleEntry(refKind, reference);
+            var mySym = this.sym;
+            if (ret.sym == null && mySym != null)
+                ret.sym = mySym;
+            return ret;
         }
 
         @Override
@@ -1020,7 +1110,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_METHOD_TYPE;
         }
 
@@ -1037,6 +1127,11 @@ public abstract sealed class AbstractPoolEntry {
         @Override
         public MethodTypeDesc asSymbol() {
             return ref1.methodTypeSymbol();
+        }
+
+        @Override
+        public boolean matches(MethodTypeDesc desc) {
+            return ref1.isMethodType(desc);
         }
 
         @Override
@@ -1058,7 +1153,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_STRING;
         }
 
@@ -1070,6 +1165,11 @@ public abstract sealed class AbstractPoolEntry {
         @Override
         public String stringValue() {
             return ref1.toString();
+        }
+
+        @Override
+        public boolean equalsString(String value) {
+            return ref1.equalsString(value);
         }
 
         @Override
@@ -1110,7 +1210,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_INTEGER;
         }
 
@@ -1156,7 +1256,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_FLOAT;
         }
 
@@ -1201,7 +1301,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_LONG;
         }
 
@@ -1251,7 +1351,7 @@ public abstract sealed class AbstractPoolEntry {
         }
 
         @Override
-        public byte tag() {
+        public int tag() {
             return TAG_DOUBLE;
         }
 

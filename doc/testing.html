@@ -72,6 +72,9 @@ id="toc-notes-for-specific-tests">Notes for Specific Tests</a>
 <li><a href="#non-us-locale" id="toc-non-us-locale">Non-US
 locale</a></li>
 <li><a href="#pkcs11-tests" id="toc-pkcs11-tests">PKCS11 Tests</a></li>
+<li><a href="#testing-with-alternative-security-providers"
+id="toc-testing-with-alternative-security-providers">Testing with
+alternative security providers</a></li>
 <li><a href="#client-ui-tests" id="toc-client-ui-tests">Client UI
 Tests</a></li>
 </ul></li>
@@ -408,6 +411,13 @@ instrumentation
 special target <code>jcov-test</code> instead of <code>test</code>, e.g.
 <code>make jcov-test TEST=jdk_lang</code>. This will make sure the JCov
 image is built, and that JCov reporting is enabled.</p>
+<p>To include JCov coverage for just a subset of all modules, you can
+use the <code>--with-jcov-modules</code> arguments to
+<code>configure</code>, e.g.
+<code>--with-jcov-modules=jdk.compiler,java.desktop</code>.</p>
+<p>For more fine-grained control, you can pass arbitrary filters to JCov
+using <code>--with-jcov-filters</code>, and you can specify a specific
+JDK to instrument using <code>--with-jcov-input-jdk</code>.</p>
 <p>The JCov report is stored in
 <code>build/$BUILD/test-results/jcov-output/report</code>.</p>
 <p>Please note that running with JCov reporting can be very memory
@@ -434,7 +444,7 @@ GB/2</em>.</p>
 <p>Sets the argument <code>-timeoutHandlerTimeout</code> for JTReg. The
 default value is 0. This is only valid if the failure handler is
 built.</p>
-<h4 id="jtreg_test_thread_factory">JTREG_TEST_THREAD_FACTORY</h4>
+<h4 id="test_thread_factory">TEST_THREAD_FACTORY</h4>
 <p>Sets the <code>-testThreadFactory</code> for JTReg. It should be the
 fully qualified classname of a class which implements
 <code>java.util.concurrent.ThreadFactory</code>. One such implementation
@@ -586,6 +596,18 @@ element of the appropriate <code>@Artifact</code> class. (See
     JTREG=&quot;JAVA_OPTIONS=-Djdk.test.lib.artifacts.nsslib-linux_aarch64=/path/to/NSS-libs&quot;</code></pre>
 <p>For more notes about the PKCS11 tests, please refer to
 test/jdk/sun/security/pkcs11/README.</p>
+<h3 id="testing-with-alternative-security-providers">Testing with
+alternative security providers</h3>
+<p>Some security tests use a hardcoded provider for
+<code>KeyFactory</code>, <code>Cipher</code>,
+<code>KeyPairGenerator</code>, <code>KeyGenerator</code>,
+<code>AlgorithmParameterGenerator</code>, <code>KeyAgreement</code>,
+<code>Mac</code>, <code>MessageDigest</code>, <code>SecureRandom</code>,
+<code>Signature</code>, <code>AlgorithmParameters</code>,
+<code>Configuration</code>, <code>Policy</code>, or
+<code>SecretKeyFactory</code> objects. Specify the
+<code>-Dtest.provider.name=NAME</code> property to use a different
+provider for the service(s).</p>
 <h3 id="client-ui-tests">Client UI Tests</h3>
 <h4 id="system-key-shortcuts">System key shortcuts</h4>
 <p>Some Client UI tests use key sequences which may be reserved by the

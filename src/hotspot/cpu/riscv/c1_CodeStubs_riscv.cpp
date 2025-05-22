@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1999, 2025, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2014, Red Hat Inc. All rights reserved.
  * Copyright (c) 2020, 2023, Huawei Technologies Co., Ltd. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
@@ -24,7 +24,6 @@
  *
  */
 
-#include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "c1/c1_CodeStubs.hpp"
 #include "c1/c1_FrameMap.hpp"
@@ -42,11 +41,7 @@
 void C1SafepointPollStub::emit_code(LIR_Assembler* ce) {
   __ bind(_entry);
   InternalAddress safepoint_pc(__ pc() - __ offset() + safepoint_offset());
-  __ relocate(safepoint_pc.rspec(), [&] {
-    int32_t offset;
-    __ la(t0, safepoint_pc.target(), offset);
-    __ addi(t0, t0, offset);
-  });
+  __ la(t0, safepoint_pc);
   __ sd(t0, Address(xthread, JavaThread::saved_exception_pc_offset()));
 
   assert(SharedRuntime::polling_page_return_handler_blob() != nullptr,
@@ -75,7 +70,7 @@ void RangeCheckStub::emit_code(LIR_Assembler* ce) {
     __ far_call(RuntimeAddress(a));
     ce->add_call_info_here(_info);
     ce->verify_oop_map(_info);
-    debug_only(__ should_not_reach_here());
+    DEBUG_ONLY(__ should_not_reach_here());
     return;
   }
 
@@ -92,12 +87,12 @@ void RangeCheckStub::emit_code(LIR_Assembler* ce) {
     __ mv(t1, _array->as_pointer_register());
     stub_id = C1StubId::throw_range_check_failed_id;
   }
-  // t0 and t1 are used as args in generate_exception_throw，
-  // so use ra as the tmp register for rt_call.
+  // t0 and t1 are used as args in generate_exception_throw,
+  // so use x1/ra as the tmp register for rt_call.
   __ rt_call(Runtime1::entry_for(stub_id), ra);
   ce->add_call_info_here(_info);
   ce->verify_oop_map(_info);
-  debug_only(__ should_not_reach_here());
+  DEBUG_ONLY(__ should_not_reach_here());
 }
 
 PredicateFailedStub::PredicateFailedStub(CodeEmitInfo* info) {
@@ -110,7 +105,7 @@ void PredicateFailedStub::emit_code(LIR_Assembler* ce) {
   __ far_call(RuntimeAddress(a));
   ce->add_call_info_here(_info);
   ce->verify_oop_map(_info);
-  debug_only(__ should_not_reach_here());
+  DEBUG_ONLY(__ should_not_reach_here());
 }
 
 void DivByZeroStub::emit_code(LIR_Assembler* ce) {
@@ -263,7 +258,7 @@ void ImplicitNullCheckStub::emit_code(LIR_Assembler* ce) {
   __ far_call(RuntimeAddress(a));
   ce->add_call_info_here(_info);
   ce->verify_oop_map(_info);
-  debug_only(__ should_not_reach_here());
+  DEBUG_ONLY(__ should_not_reach_here());
 }
 
 void SimpleExceptionStub::emit_code(LIR_Assembler* ce) {
@@ -275,9 +270,9 @@ void SimpleExceptionStub::emit_code(LIR_Assembler* ce) {
   if (_obj->is_cpu_register()) {
     __ mv(t0, _obj->as_register());
   }
-  __ far_call(RuntimeAddress(Runtime1::entry_for(_stub)), t1);
+  __ far_call(RuntimeAddress(Runtime1::entry_for(_stub)));
   ce->add_call_info_here(_info);
-  debug_only(__ should_not_reach_here());
+  DEBUG_ONLY(__ should_not_reach_here());
 }
 
 void ArrayCopyStub::emit_code(LIR_Assembler* ce) {
@@ -320,7 +315,7 @@ void ArrayCopyStub::emit_code(LIR_Assembler* ce) {
                   relocInfo::static_call_type);
   address call = __ reloc_call(resolve);
   if (call == nullptr) {
-    ce->bailout("trampoline stub overflow");
+    ce->bailout("reloc call address stub overflow");
     return;
   }
   ce->add_call_info_here(info());

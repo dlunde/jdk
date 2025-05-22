@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2025, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -21,7 +21,6 @@
  * questions.
  */
 
-#include "precompiled.hpp"
 #include "asm/macroAssembler.inline.hpp"
 #include "code/codeBlob.hpp"
 #include "code/vmreg.inline.hpp"
@@ -221,11 +220,10 @@ void ZBarrierSetAssembler::load_at(MacroAssembler* masm,
                                    BasicType type,
                                    Register dst,
                                    Address src,
-                                   Register tmp1,
-                                   Register tmp_thread) {
+                                   Register tmp1) {
   if (!ZBarrierSet::barrier_needed(decorators, type)) {
     // Barrier not needed
-    BarrierSetAssembler::load_at(masm, decorators, type, dst, src, tmp1, tmp_thread);
+    BarrierSetAssembler::load_at(masm, decorators, type, dst, src, tmp1);
     return;
   }
 
@@ -363,8 +361,12 @@ static void emit_store_fast_path_check_c2(MacroAssembler* masm, Address ref_addr
 }
 
 static bool is_c2_compilation() {
+#ifdef COMPILER2
   CompileTask* task = ciEnv::current()->task();
   return task != nullptr && is_c2_compile(task->comp_level());
+#else
+  return false;
+#endif
 }
 
 void ZBarrierSetAssembler::store_barrier_fast(MacroAssembler* masm,
@@ -1260,6 +1262,8 @@ void ZBarrierSetAssembler::generate_c2_store_barrier_stub(MacroAssembler* masm, 
       __ call(RuntimeAddress(ZBarrierSetRuntime::store_barrier_on_native_oop_field_without_healing_addr()));
     } else if (stub->is_atomic()) {
       __ call(RuntimeAddress(ZBarrierSetRuntime::store_barrier_on_oop_field_with_healing_addr()));
+    } else if (stub->is_nokeepalive()) {
+      __ call(RuntimeAddress(ZBarrierSetRuntime::no_keepalive_store_barrier_on_oop_field_without_healing_addr()));
     } else {
       __ call(RuntimeAddress(ZBarrierSetRuntime::store_barrier_on_oop_field_without_healing_addr()));
     }
@@ -1324,7 +1328,13 @@ void ZBarrierSetAssembler::patch_barrier_relocation(address addr, int format) {
   const uint16_t value = patch_barrier_relocation_value(format);
   uint8_t* const patch_addr = (uint8_t*)addr + offset;
   if (format == ZBarrierRelocationFormatLoadGoodBeforeShl) {
-    *patch_addr = (uint8_t)value;
+    if (VM_Version::supports_apx_f()) {
+      NativeInstruction* instruction = nativeInstruction_at(addr);
+      uint8_t* const rex2_patch_addr = patch_addr + (instruction->has_rex2_prefix() ? 1 : 0);
+      *rex2_patch_addr = (uint8_t)value;
+    } else {
+      *patch_addr = (uint8_t)value;
+    }
   } else {
     *(uint16_t*)patch_addr = value;
   }
