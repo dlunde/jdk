@@ -472,6 +472,9 @@ void PhaseChaitin::Register_Allocate() {
   // Build physical interference graph
   uint must_spill = 0;
   must_spill = build_ifg_physical(&live_arena);
+  if (UseNewCode && C->is_method_compilation()) {
+    tty->print_cr("Live nodes: %d, Live ranges: %d, IFG edges: %d", C->live_nodes(), ifg._maxlrg, ifg._edges);
+  }
   // If we have a guaranteed spill, might as well spill now
   if (must_spill) {
     if(!_lrg_map.max_lrg_id()) {

@@ -43,6 +43,7 @@ PhaseIFG::PhaseIFG( Arena *arena ) : Phase(Interference_Graph), _arena(arena) {
 
 void PhaseIFG::init( uint maxlrg ) {
   _maxlrg = maxlrg;
+  _edges = 0;
   _yanked = new (_arena) VectorSet(_arena);
   _is_square = false;
   // Make uninitialized adjacency lists
@@ -66,7 +67,9 @@ int PhaseIFG::add_edge( uint a, uint b ) {
   // Sort a and b, so that a is bigger
   assert( !_is_square, "only on triangular" );
   if( a < b ) { uint tmp = a; a = b; b = tmp; }
-  return _adjs[a].insert( b );
+  int ret = _adjs[a].insert( b );
+  if (ret) { _edges++; }
+  return ret;
 }
 
 // Is there an edge between a and b?

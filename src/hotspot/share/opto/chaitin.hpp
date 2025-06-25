@@ -265,6 +265,7 @@ class PhaseIFG : public Phase {
 public:
   // Largest live-range number
   uint _maxlrg;
+  uint _edges;
 
   Arena *_arena;
 
