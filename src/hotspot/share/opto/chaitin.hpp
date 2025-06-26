@@ -247,6 +247,9 @@ class PhaseIFG : public Phase {
   LRG *_lrgs;                   // Array of LRG structures
 
 public:
+
+  uint _edges;
+
   // Largest live-range number
   uint _maxlrg;
 
