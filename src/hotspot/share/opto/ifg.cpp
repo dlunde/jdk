@@ -68,8 +68,9 @@ int PhaseIFG::add_edge( uint a, uint b ) {
   if( a < b ) { uint tmp = a; a = b; b = tmp; }
   int ret = _adjs[a].insert(b);
   _edges += ret;
-  if (_edges > IFGEdgesLimit) {
+  if (UseNewCode && _edges > IFGEdgesLimit) {
     C->record_method_not_compilable("out of IFG edges");
+    assert(false, "bailout on IFG size");
   }
   return ret;
 }
