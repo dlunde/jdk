@@ -247,6 +247,10 @@ class PhaseIFG : public Phase {
   LRG *_lrgs;                   // Array of LRG structures
 
 public:
+
+  // Keep track of number of edges to allow bailing out on very large IFGs
+  uint _edges;
+
   // Largest live-range number
   uint _maxlrg;
 
@@ -486,6 +490,15 @@ public:
   ~PhaseChaitin() {}
 
   LiveRangeMap _lrg_map;
+
+  uint _max_edges = 0;
+  uint _max_nodes = 0;
+  void check_limit(PhaseIFG* _ifg) {
+    if (UseNewCode && _ifg->_edges > IFGEdgesLimit && _ifg->_edges > _max_edges) {
+      _max_edges = _ifg->_edges;
+      _max_nodes = C->live_nodes();
+    }
+  }
 
   LRG &lrgs(uint idx) const { return _ifg->lrgs(idx); }
 

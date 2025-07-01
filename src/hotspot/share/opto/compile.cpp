@@ -3073,6 +3073,11 @@ void Compile::Code_Gen() {
       return;
     }
 
+    if (UseNewCode && regalloc._max_edges > 0) {
+      assert(false, "Hit IFG limit and did not otherwise bail out. Nodes: %d, Edges: %d",
+          regalloc._max_nodes, regalloc._max_edges);
+    }
+
     print_method(PHASE_REGISTER_ALLOCATION, 2);
   }
 
