@@ -26,10 +26,7 @@
  * @bug 8019184
  * @library /test/lib /java/lang/invoke/common
  * @summary MethodHandles.catchException() fails when methods have 8 args + varargs
- * @comment The maximum node limit below avoids, in combination with -Xcomp,
- *          timeouts due to compilation of a large number of methods with a
- *          large number of parameters.
- * @run main/othervm -XX:MaxNodeLimit=15000 TestCatchExceptionWithVarargs
+ * @run main TestCatchExceptionWithVarargs
  */
 
 import test.java.lang.invoke.lib.CodeCacheOverflowProcessor;

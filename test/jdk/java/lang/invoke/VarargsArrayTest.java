@@ -37,20 +37,12 @@ import java.util.Collections;
  * @library /test/lib /java/lang/invoke/common
  * @compile/module=java.base java/lang/invoke/MethodHandleHelper.java
  * @run main/bootclasspath VarargsArrayTest
- * @comment The maximum node limit below avoids, in combination with -Xcomp,
- *          timeouts due to compilation of a large number of methods with a
- *          large number of parameters.
- * @run main/bootclasspath/othervm -XX:MaxNodeLimit=15000
- *                                 -DVarargsArrayTest.MAX_ARITY=255
- *                                 -DVarargsArrayTest.START_ARITY=250
- *                                 VarargsArrayTest
+ * @run main/bootclasspath/othervm -DVarargsArrayTest.MAX_ARITY=255 -DVarargsArrayTest.START_ARITY=250
+ *                         VarargsArrayTest
  */
 
 /* This might take a while and burn lots of metadata:
- * @run main/bootclasspath/othervm -XX:MaxNodeLimit=15000
- *                                 -DVarargsArrayTest.MAX_ARITY=255
- *                                 -DVarargsArrayTest.EXHAUSTIVE=true
- *                                 VarargsArrayTest
+ * @run main/bootclasspath -DVarargsArrayTest.MAX_ARITY=255 -DVarargsArrayTest.EXHAUSTIVE=true VarargsArrayTest
  */
 public class VarargsArrayTest {
     private static final Class<?> CLASS = VarargsArrayTest.class;
