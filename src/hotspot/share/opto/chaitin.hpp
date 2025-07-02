@@ -493,10 +493,13 @@ public:
 
   uint _max_edges = 0;
   uint _max_nodes = 0;
-  void check_limit(PhaseIFG* _ifg) {
+  void instrumentation(PhaseIFG* _ifg) {
     if (UseNewCode && _ifg->_edges > IFGEdgesLimit && _ifg->_edges > _max_edges) {
       _max_edges = _ifg->_edges;
       _max_nodes = C->live_nodes();
+    }
+    if (UseNewCode2) {
+      tty->print_cr("DATA,%d,%d,%d",C->live_nodes(),_ifg->_maxlrg,_ifg->_edges);
     }
   }
 

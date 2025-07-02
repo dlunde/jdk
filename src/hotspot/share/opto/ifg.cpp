@@ -399,7 +399,7 @@ void PhaseChaitin::build_ifg_virtual( ) {
       }
     } // End of forall instructions in block
   } // End of forall blocks
-  check_limit(_ifg);
+  instrumentation(_ifg);
 }
 
 #ifdef ASSERT
@@ -952,6 +952,6 @@ uint PhaseChaitin::build_ifg_physical( ResourceArea *a ) {
 #endif
   }
 
-  check_limit(_ifg);
+  instrumentation(_ifg);
   return must_spill;
 }
