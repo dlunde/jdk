@@ -503,7 +503,6 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   uint                 non_phi = 1, spill_cnt = 0;
   Node                *n1, *n2, *n3;
   bool                *UPblock;
-  bool                 u1, u2, u3;
   Block               *b, *pred;
   PhiNode             *phi;
   GrowableArray<uint>  lidxs(split_arena, maxlrg, 0, 0);
@@ -548,16 +547,15 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   bool  **UP          = NEW_SPLIT_ARRAY( bool*, _cfg.number_of_blocks() + 1);
   Node  **debug_defs  = NEW_SPLIT_ARRAY( Node*, spill_cnt );
   VectorSet **UP_entry= NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
+  VectorSet **UP_exit = NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
 
   // Initialize Reaches & UP
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
     Reaches[bidx]     = NEW_SPLIT_ARRAY( Node*, spill_cnt );
     UP[bidx]          = NEW_SPLIT_ARRAY( bool, spill_cnt );
-    Node **Reachblock = Reaches[bidx];
     bool *UPblock     = UP[bidx];
     for( slidx = 0; slidx < spill_cnt; slidx++ ) {
       UPblock[slidx] = true;     // Assume they start in registers
-      Reachblock[slidx] = nullptr;  // Assume that no def is present
     }
   }
 
@@ -567,6 +565,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   // Each containing at most spill_cnt * _cfg.number_of_blocks() entries.
   for (slidx = 0; slidx < spill_cnt; slidx++) {
     UP_entry[slidx] = new(split_arena) VectorSet(split_arena);
+    UP_exit[slidx] = new(split_arena) VectorSet(split_arena);
   }
 
   // Keep track of DEFS & Phis for later passes
@@ -576,6 +575,31 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   //----------PASS 1----------
   //----------Propagation & Node Insertion Code----------
   // Walk the Blocks in RPO for DEF & USE info
+
+  bool fixpoint = false;
+  bool changed = true;
+  uint iters = 1;
+
+  while(!fixpoint) {
+
+  if (!changed || iters > 50) {
+    fixpoint = true;
+  } else {
+    changed = false;
+    iters++;
+  }
+
+  // Reset Reaches
+  for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
+    Node **Reachblock = Reaches[bidx];
+    for( slidx = 0; slidx < spill_cnt; slidx++ ) {
+      Reachblock[slidx] = nullptr;  // Assume that no def is present
+    }
+  }
+
+  assert(defs.size() == 0, "should only get modified at fixpoint");
+  assert(phis.size() == 0, "should only get modified at fixpoint");
+
   for( bidx = 0; bidx < _cfg.number_of_blocks(); bidx++ ) {
 
     if (C->check_node_count(spill_cnt, out_of_nodes)) {
@@ -616,7 +640,6 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
       // Initialize needs_phi and needs_split
       bool needs_phi = false;
-      bool needs_split = false;
       bool has_phi = false;
       // Walk the predecessor blocks to check inputs for that live range
       // Grab predecessor block header
@@ -627,10 +650,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       Node **Ltmp = Reaches[pidx];
       bool  *Utmp = UP[pidx];
       n1 = Ltmp[slidx];
-      u1 = Utmp[slidx];
       // Initialize node for saving type info
       n3 = n1;
-      u3 = u1;
+
+      double u_weight = pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
 
       // Compare inputs to see if a Phi is needed
       for( inpidx = 2; inpidx < b->num_preds(); inpidx++ ) {
@@ -642,22 +665,19 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         Ltmp = Reaches[pidx];
         Utmp = UP[pidx];
         n2 = Ltmp[slidx];
-        u2 = Utmp[slidx];
+
+        u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
+
         // For each LRG, decide if a phi is necessary
         if( n1 != n2 ) {
           needs_phi = true;
         }
-        // See if the phi has mismatched inputs, UP vs. DOWN
-        if( n1 && n2 && (u1 != u2) ) {
-          needs_split = true;
-        }
-        // Move n2/u2 to n1/u1 for next iteration
+
+        // Move n2 to n1 for next iteration
         n1 = n2;
-        u1 = u2;
         // Preserve a non-null predecessor for later type referencing
         if( (n3 == nullptr) && (n2 != nullptr) ){
           n3 = n2;
-          u3 = u2;
         }
       }  // End for all potential Phi inputs
 
@@ -703,18 +723,22 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         }  // end if not found correct phi
         // Here you have either found or created the Phi, so record it
         assert(phi != nullptr,"Must have a Phi Node here");
-        phis.push(phi);
+        if (fixpoint) {
+          phis.push(phi);
+        }
+
         // PhiNodes should either force the LRG UP or DOWN depending
         // on its inputs and the register pressure in the Phi's block.
-        UPblock[slidx] = true;  // Assume new DEF is UP
+
+        // As a baseline, use a weighted average of the predecessor's frequency
+        // and UP/DOWN status.
+        UPblock[slidx] = u_weight > 0.0;
+
         // If entering a high-pressure area with no immediate use,
         // assume Phi is DOWN
-        if( is_high_pressure( b, &lrgs(lidx), b->end_idx()) && !prompt_use(b,lidx) )
+        if( is_high_pressure( b, &lrgs(lidx), b->end_idx()) && !prompt_use(b,lidx) ) {
           UPblock[slidx] = false;
-        // If we are not split up/down and all inputs are down, then we
-        // are down
-        if( !needs_split && !u3 )
-          UPblock[slidx] = false;
+        }
       }  // end if phi is needed
 
       // Do not need a phi, so grab the reaching DEF
@@ -733,7 +757,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     }  // end for all spilling live ranges
     // DEBUG
 #ifndef PRODUCT
-    if(trace_spilling()) {
+    if(fixpoint && trace_spilling()) {
       tty->print("/`\nBlock %d: ", b->_pre_order);
       tty->print("Reaching Definitions after Phi handling\n");
       for( uint x = 0; x < spill_cnt; x++ ) {
@@ -756,8 +780,14 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     // Memoize any DOWN reaching definitions for use as DEBUG info
     for( insidx = 0; insidx < spill_cnt; insidx++ ) {
       debug_defs[insidx] = (UPblock[insidx]) ? nullptr : Reachblock[insidx];
-      if( UPblock[insidx] )     // Memoize UP decision at block start
+
+      changed |= UP_entry[insidx]->test(b->_pre_order) != UPblock[insidx];
+
+      if( UPblock[insidx] ) {     // Memoize UP decision at block entry
         UP_entry[insidx]->set( b->_pre_order );
+      } else {
+        UP_entry[insidx]->remove( b->_pre_order );
+      }
     }
 
     //----------Walk Instructions in the Block and Split----------
@@ -769,6 +799,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       uint cnt = n->req();
 
       if (n->is_Phi()) {
+        if (!fixpoint) {
+          continue;
+        }
         // Skip phi nodes after removing dead copies.
         if (defidx < _lrg_map.max_lrg_id()) {
           // Check for useless Phis.  These appear if we spill, then
@@ -831,7 +864,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               if( debug_defs[slidx] != nullptr ) {
                 Reachblock[slidx] = debug_defs[slidx];
               }
-              else {
+              else if (fixpoint) {
                 // Insert point is just past last use or def in the block
                 int insert_point = insidx-1;
                 while( insert_point > 0 ) {
@@ -872,7 +905,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               UPblock[slidx] = false;
 #ifndef PRODUCT
               // DEBUG
-              if( trace_spilling() ) {
+              if( fixpoint && trace_spilling() ) {
                 tty->print("\nNew Split DOWN DEF of Spill Idx ");
                 tty->print("%d, UP %d:\n",slidx,false);
                 n1->dump();
@@ -892,6 +925,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       uint copyidx = n->is_Copy();
       // Remove coalesced copy from CFG
       if (copyidx && defidx == _lrg_map.live_range_id(n->in(copyidx))) {
+        if (!fixpoint) {
+          continue;
+        }
         n->replace_by( n->in(copyidx) );
         n->set_req( copyidx, nullptr );
         b->remove_node(insidx--);
@@ -932,6 +968,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
             // (+++) %%%% remove this in favor of pre-pass in matcher.cpp
             // monitor references do not care where they live, so just hook
             if ( jvms && jvms->is_monitor_use(inpidx) ) {
+              if (!fixpoint) {
+                continue;
+              }
               // The effect of this clone is to drop the node out of the block,
               // so that the allocator does not see it anymore, and therefore
               // does not attempt to assign it a register.
@@ -947,7 +986,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
             // Rematerializable?  Then clone def at use site instead
             // of store/load
-            if( def->rematerialize() ) {
+            if( fixpoint && def->rematerialize() ) {
               int old_size = b->number_of_nodes();
               def = split_Rematerialize( def, b, insidx, maxlrg, splits, slidx, lrg2reach, Reachblock, true );
               if( !def ) return 0; // Bail out
@@ -958,6 +997,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
             // Base pointers and oopmap references do not care where they live.
             if ((inpidx >= oopoff) ||
                 (mach && mach->ideal_Opcode() == Op_AddP && inpidx == AddPNode::Base)) {
+              if (!fixpoint) {
+                continue;
+              }
               if (def->rematerialize() && lrgs(useidx)._was_spilled2) {
                 // This def has been rematerialized a couple of times without
                 // progress. It doesn't care if it lives UP or DOWN, so
@@ -1012,6 +1054,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               uint debug_start = jvms->debug_start();
               // If this is debug info use & there is a reaching DOWN def
               if ((debug_start <= inpidx) && (debug_defs[slidx] != nullptr)) {
+                if (!fixpoint) {
+                  continue;
+                }
                 assert(inpidx < oopoff, "handle only debug info here");
                 // Just hook it in & move on
                 n->set_req(inpidx, debug_defs[slidx]);
@@ -1041,6 +1086,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                 (int)umask.Size() <= lrgs(useidx).num_regs() &&
                 (!def->rematerialize() ||
                  (!is_vect && umask.is_misaligned_pair()))) {
+              if (!fixpoint) {
+                continue;
+              }
               // These need a Split regardless of overlap or pressure
               // SPLIT - NO DEF - NO CISC SPILL
               int delta = split_USE(MachSpillCopyNode::Bound, def,b,n,inpidx,maxlrg,dup,false, splits,slidx);
@@ -1054,6 +1102,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
             }
 
             if (UseFPUForSpilling && n->is_MachCall() && !uup && !dup ) {
+              if (!fixpoint) {
+                continue;
+              }
               // The use at the call can force the def down so insert
               // a split before the use to allow the def more freedom.
               int delta = split_USE(MachSpillCopyNode::CallUse, def,b,n,inpidx,maxlrg,dup,false, splits,slidx);
@@ -1087,11 +1138,14 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
             // special handling for Debug Info.
             if( dup == uup ) {
               if( dmask.overlap(umask) ) {
+                if (fixpoint) {
                 // Both are either up or down, and there is overlap, No Split
                 n->set_req(inpidx, def);
+                }
               }
               else {  // Both are either up or down, and there is no overlap
                 if( dup ) {  // If UP, reg->reg copy
+                  if (fixpoint) {
                   // COPY ACROSS HERE - NO DEF - NO CISC SPILL
                   int delta = split_USE(MachSpillCopyNode::RegToReg, def,b,n,inpidx,maxlrg,false,false, splits,slidx);
                   // If it wasn't split bail
@@ -1100,8 +1154,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   }
                   maxlrg += delta;
                   insidx += delta;  // Reset iterator to skip USE side split
+                  }
                 }
                 else {       // DOWN, mem->mem copy
+                  if (fixpoint) {
                   // COPY UP & DOWN HERE - NO DEF - NO CISC SPILL
                   // First Split-UP to move value into Register
                   uint def_ideal = def->ideal_reg();
@@ -1117,6 +1173,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   }
                   maxlrg += delta;
                   insidx += delta;  // Reset iterator to skip USE side splits
+                  }
                 }
               }  // End else no overlap
             }  // End if dup == uup
@@ -1135,6 +1192,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                     continue;
                   }
                 }
+
+                if (fixpoint) {
                 // COPY DOWN HERE - NO DEF - NO CISC SPILL
                 int delta = split_USE(MachSpillCopyNode::RegToMem, def,b,n,inpidx,maxlrg,false,false, splits,slidx);
                 // If it wasn't split bail
@@ -1147,10 +1206,11 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                 // debug splits of the same value
                 if (jvms && jvms->debug_start() <= inpidx && inpidx < oopoff)
                   debug_defs[slidx] = n->in(inpidx);
-
+                }
               }
               else {       // DOWN, Split-UP and check register pressure
                 if( is_high_pressure( b, &lrgs(useidx), insidx ) ) {
+                  if (fixpoint) {
                   // COPY UP HERE - NO DEF - CISC SPILL
                   int delta = split_USE(MachSpillCopyNode::MemToReg, def,b,n,inpidx,maxlrg,true,true, splits,slidx);
                   // If it wasn't split bail
@@ -1159,7 +1219,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   }
                   maxlrg += delta;
                   insidx += delta;  // Reset iterator to skip USE side split
+                  }
                 } else {                          // LRP
+                  UPblock[slidx] = true;
+                  if (fixpoint) {
                   // COPY UP HERE - WITH DEF - NO CISC SPILL
                   int delta = split_USE(MachSpillCopyNode::MemToReg, def,b,n,inpidx,maxlrg,true,false, splits,slidx);
                   // If it wasn't split bail
@@ -1173,9 +1236,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   set_was_spilled(n->in(inpidx));
                   // Since this is a new DEF, update Reachblock & UP
                   Reachblock[slidx] = n->in(inpidx);
-                  UPblock[slidx] = true;
                   maxlrg += delta;
                   insidx += delta;  // Reset iterator to skip USE side split
+                  }
                 }
               }  // End else DOWN
             }  // End dup != uup
@@ -1189,12 +1252,14 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       // UP info.
       if( deflrg.reg() >= LRG::SPILL_REG ) {    // Spilled?
         uint slidx = lrg2reach[defidx];
+        if (fixpoint) {
         // Add to defs list for later assignment of new live range number
         defs.push(n);
         // Set a flag on the Node indicating it has already spilled.
         // Only do it for capacity spills not conflict spills.
         if( !deflrg._direct_conflict )
           set_was_spilled(n);
+        }
         assert(!n->is_Phi(),"Cannot insert Phi into DEFS list");
         // Grab UP info for DEF
         const RegMask &dmask = n->out_RegMask();
@@ -1209,17 +1274,22 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
              // pressure area.  Spill it down immediately.
              (defup && is_high_pressure(b,&deflrg,insidx) && !n->is_SpillCopy())) ) {
           assert( !n->rematerialize(), "" );
+          if (fixpoint) {
           // Do a split at the def site.
           maxlrg = split_DEF( n, b, insidx, maxlrg, Reachblock, debug_defs, splits, slidx );
           // If it wasn't split bail
           if (!maxlrg) {
             return 0;
           }
+          } else {
+            Reachblock[slidx] = n;
+            debug_defs[slidx] = defup ? nullptr : n;
+          }
           // Split DEF's Down
-          UPblock[slidx] = 0;
+          UPblock[slidx] = false;
 #ifndef PRODUCT
           // DEBUG
-          if( trace_spilling() ) {
+          if( fixpoint && trace_spilling() ) {
             tty->print("\nNew Split DOWN DEF of Spill Idx ");
             tty->print("%d, UP %d:\n",slidx,false);
             n->dump();
@@ -1235,7 +1305,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           debug_defs[slidx] = defup ? nullptr : n;
 #ifndef PRODUCT
           // DEBUG
-          if( trace_spilling() ) {
+          if( fixpoint && trace_spilling() ) {
             tty->print("\nNew DEF of Spill Idx ");
             tty->print("%d, UP %d:\n",slidx,defup);
             n->dump();
@@ -1247,7 +1317,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       // ********** Split Left Over Mem-Mem Moves **********
       // Check for mem-mem copies and split them now.  Do not do this
       // to copies about to be spilled; they will be Split shortly.
-      if (copyidx) {
+      if (fixpoint && copyidx) {
         Node *use = n->in(copyidx);
         uint useidx = _lrg_map.find_id(use);
         if (useidx < _lrg_map.max_lrg_id() &&       // This is not a new split
@@ -1282,7 +1352,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       IndexSet *liveout = _live->live(b);
       if( !liveout->member(defidx) ) {
 #ifdef ASSERT
-        if (VerifyRegisterAllocator) {
+        if (fixpoint && VerifyRegisterAllocator) {
           // The index defidx is not live.  Check the liveout array to ensure that
           // it contains no members which compress to defidx.  Finding such an
           // instance may be a case to add liveout adjustment in compress_uf_map().
@@ -1302,10 +1372,23 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       }
     }
 #ifndef PRODUCT
-    if( trace_spilling() )
+    if( fixpoint && trace_spilling() )
       b->dump();
 #endif
+
+    for( insidx = 0; insidx < spill_cnt; insidx++ ) {
+
+      changed |= UP_exit[insidx]->test(b->_pre_order) != UPblock[insidx];
+
+      if( UPblock[insidx] ) {     // Memoize UP decision at block exit
+        UP_exit[insidx]->set( b->_pre_order );
+      } else {
+        UP_exit[insidx]->remove( b->_pre_order );
+      }
+    }
+
   }  // End For All Blocks
+  }
 
   //----------PASS 2----------
   // Reset all DEF live range numbers here
@@ -1373,9 +1456,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       // Update the Phi's input edge array
       phi->set_req(i,def);
       // Grab the UP/DOWN sense for the input
-      u1 = UP[pidx][slidx];
-      if( u1 != (phi_up != 0)) {
-        int delta = split_USE(MachSpillCopyNode::PhiLocationDifferToInputLocation, def, b, phi, i, maxlrg, !u1, false, splits,slidx);
+      bool u = UP[pidx][slidx];
+      if( u != (phi_up != 0)) {
+        int delta = split_USE(MachSpillCopyNode::PhiLocationDifferToInputLocation, def, b, phi, i, maxlrg, !u, false, splits,slidx);
         // If it wasn't split bail
         if (delta < 0) {
           return 0;
