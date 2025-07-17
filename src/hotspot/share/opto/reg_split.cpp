@@ -430,7 +430,7 @@ Node *PhaseChaitin::split_Rematerialize(Node *def, Block *b, uint insidx, uint &
 //------------------------------is_high_pressure-------------------------------
 // Function to compute whether or not this live range is "high pressure"
 // in this block - whether it spills eagerly or not.
-bool PhaseChaitin::is_high_pressure( Block *b, LRG *lrg, uint insidx ) {
+static bool is_high_pressure(const Block* b, const LRG* lrg, uint insidx) {
   if( lrg->_was_spilled1 ) return true;
   // Forced spilling due to conflict?  Then split only at binding uses
   // or defs, not for supposed capacity problems.
