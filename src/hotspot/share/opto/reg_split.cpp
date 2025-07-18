@@ -553,10 +553,6 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
     Reaches[bidx]     = NEW_SPLIT_ARRAY( Node*, spill_cnt );
     UP[bidx]          = NEW_SPLIT_ARRAY( bool, spill_cnt );
-    bool *UPblock     = UP[bidx];
-    for( slidx = 0; slidx < spill_cnt; slidx++ ) {
-      UPblock[slidx] = true;     // Assume they start in registers
-    }
   }
 
 #undef NEW_SPLIT_ARRAY
@@ -578,15 +574,14 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
   bool fixpoint = false;
   bool changed = true;
-  uint iters = 1;
+  uint iter = 0;
 
   while(!fixpoint) {
 
-  if (!changed || iters > 50) {
+  if (!changed || iter > 50) {
     fixpoint = true;
   } else {
     changed = false;
-    iters++;
   }
 
   // Reset Reaches
@@ -653,7 +648,11 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       // Initialize node for saving type info
       n3 = n1;
 
-      double u_weight = pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
+      double u_weight = 0.0;
+      // In the first iteration, Utmp[slidx] contains garbage if n1 == nullptr
+      if (iter > 0 || n1 != nullptr) {
+        u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
+      }
 
       // Compare inputs to see if a Phi is needed
       for( inpidx = 2; inpidx < b->num_preds(); inpidx++ ) {
@@ -666,7 +665,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         Utmp = UP[pidx];
         n2 = Ltmp[slidx];
 
-        u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
+        // In the first iteration, Utmp[slidx] contains garbage if n2 == nullptr
+        if (iter > 0 || n2 != nullptr) {
+          u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
+        }
 
         // For each LRG, decide if a phi is necessary
         if( n1 != n2 ) {
@@ -1388,6 +1390,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     }
 
   }  // End For All Blocks
+    iter++;
   }
 
   //----------PASS 2----------
@@ -1464,6 +1467,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           return 0;
         }
         maxlrg += delta;
+        set_was_spilled(phi->in(i));
       }
     }  // End for all inputs to the Phi
   }  // End for all Phi Nodes
