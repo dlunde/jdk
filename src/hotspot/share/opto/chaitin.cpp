@@ -566,6 +566,9 @@ void PhaseChaitin::Register_Allocate() {
     if( _trip_cnt++ > 24 ) {
       DEBUG_ONLY( dump_for_spill_split_recycle(); )
       if( _trip_cnt > 27 ) {
+        if (UseNewCode3) {
+          tty->print_cr("TRIP_DATA %d", _trip_cnt);
+        }
         C->record_method_not_compilable("failed spill-split-recycle sanity check");
         return;
       }
@@ -637,6 +640,10 @@ void PhaseChaitin::Register_Allocate() {
     // Select colors by re-inserting LRGs back into the IFG in reverse order.
     // Return whether or not something spills.
     spills = Select();
+  }
+
+  if (UseNewCode3) {
+    tty->print_cr("TRIP_DATA %d", _trip_cnt);
   }
 
   C->print_method(PHASE_AFTER_ITERATIVE_SPILLING, 4);
