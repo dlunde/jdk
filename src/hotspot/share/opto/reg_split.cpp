@@ -544,15 +544,22 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
   // it is always in LRP regions), and DOWN means that it is probably
   // on the stack (ie - it crosses HRP regions).
   Node ***Reaches     = NEW_SPLIT_ARRAY( Node**, _cfg.number_of_blocks() + 1);
+  uint  **Reaches_sim = NEW_SPLIT_ARRAY( uint*, _cfg.number_of_blocks() + 1);
   bool  **UP          = NEW_SPLIT_ARRAY( bool*, _cfg.number_of_blocks() + 1);
   Node  **debug_defs  = NEW_SPLIT_ARRAY( Node*, spill_cnt );
+  uint  *debug_defs_sim  = NEW_SPLIT_ARRAY( uint, spill_cnt );
   VectorSet **UP_entry= NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
   VectorSet **UP_exit = NEW_SPLIT_ARRAY( VectorSet*, spill_cnt );
 
   // Initialize Reaches & UP
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
     Reaches[bidx]     = NEW_SPLIT_ARRAY( Node*, spill_cnt );
+    Reaches_sim[bidx] = NEW_SPLIT_ARRAY( uint, spill_cnt );
     UP[bidx]          = NEW_SPLIT_ARRAY( bool, spill_cnt );
+    UPblock = UP[bidx];
+    for( slidx = 0; slidx < spill_cnt; slidx++ ) {
+      UPblock[slidx] = true; // The starting value does not matter
+    }
   }
 
 #undef NEW_SPLIT_ARRAY
@@ -578,19 +585,24 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
   while(!fixpoint) {
 
-  if (!changed || iter > 50) {
-    fixpoint = true;
-  } else {
+    if(iter > 50) {
+      assert(false, "unreasonable number of split iterations");
+      fixpoint = true;
+    } else if (!changed) {
+      fixpoint = true;
+    }
     changed = false;
-  }
 
   // Reset Reaches
   for (bidx = 0; bidx < _cfg.number_of_blocks() + 1; bidx++) {
     Node **Reachblock = Reaches[bidx];
+    uint *Reachblock_sim = Reaches_sim[bidx];
     for( slidx = 0; slidx < spill_cnt; slidx++ ) {
       Reachblock[slidx] = nullptr;  // Assume that no def is present
+      Reachblock_sim[slidx] = 0;
     }
   }
+  uint next_sim = 1;
 
   assert(defs.size() == 0, "should only get modified at fixpoint");
   assert(phis.size() == 0, "should only get modified at fixpoint");
@@ -604,6 +616,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
     b  = _cfg.get_block(bidx);
     // Reaches & UP arrays for this block
     Node** Reachblock = Reaches[b->_pre_order];
+    uint* Reachblock_sim = Reaches_sim[b->_pre_order];
     UPblock    = UP[b->_pre_order];
     // Reset counter of start of non-Phi nodes in block
     non_phi = 1;
@@ -626,6 +639,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           lrgs(lidx)._def->rematerialize() ) {
         // reset the Reaches & UP entries
         Reachblock[slidx] = lrgs(lidx)._def;
+        Reachblock_sim[slidx] = 0;
         UPblock[slidx] = true;
         // Record following instruction in case 'n' rematerializes and
         // kills flags
@@ -643,13 +657,14 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
       pred = _cfg.get_block_for_node(n1);
       pidx = pred->_pre_order;
       Node **Ltmp = Reaches[pidx];
-      bool  *Utmp = UP[pidx];
       n1 = Ltmp[slidx];
+      uint n1_sim = Reaches_sim[pidx][slidx];
+      bool  *Utmp = UP[pidx];
       // Initialize node for saving type info
       n3 = n1;
 
       double u_weight = 0.0;
-      // In the first iteration, Utmp[slidx] contains garbage if n1 == nullptr
+      // In the first iteration, Utmp[slidx] is not updated, so best ignore
       if (iter > 0 || n1 != nullptr) {
         u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
       }
@@ -662,21 +677,23 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         pred = _cfg.get_block_for_node(n2);
         pidx = pred->_pre_order;
         Ltmp = Reaches[pidx];
+        uint n2_sim = Reaches_sim[pidx][slidx];
         Utmp = UP[pidx];
         n2 = Ltmp[slidx];
 
-        // In the first iteration, Utmp[slidx] contains garbage if n2 == nullptr
+        // In the first iteration, Utmp[slidx] is not updated, so best ignore
         if (iter > 0 || n2 != nullptr) {
           u_weight += pred->_freq * (Utmp[slidx] ? 1.0 : -1.0);
         }
 
         // For each LRG, decide if a phi is necessary
-        if( n1 != n2 ) {
+        if( n1 != n2 || n1_sim != n2_sim) {
           needs_phi = true;
         }
 
         // Move n2 to n1 for next iteration
         n1 = n2;
+        n1_sim = n2_sim;
         // Preserve a non-null predecessor for later type referencing
         if( (n3 == nullptr) && (n2 != nullptr) ){
           n3 = n2;
@@ -701,6 +718,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           has_phi = true;
           // initialize the Reaches entry for this LRG
           Reachblock[slidx] = phi;
+          Reachblock_sim[slidx] = 0;
           break;
         }  // end if found correct phi
       }  // end for all phi's
@@ -715,6 +733,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           phi = new PhiNode(b->head(), n3->bottom_type());
           // initialize the Reaches entry for this LRG
           Reachblock[slidx] = phi;
+          Reachblock_sim[slidx] = 0;
 
           // add node to block & node_to_block mapping
           insert_proj(b, insidx++, phi, maxlrg++);
@@ -754,6 +773,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         bool  *Utmp = UP[pidx];
         // reset the Reaches & UP entries
         Reachblock[slidx] = Ltmp[slidx];
+        Reachblock_sim[slidx] = Reaches_sim[pidx][slidx];
         UPblock[slidx] = Utmp[slidx];
       }  // end else no Phi is needed
     }  // end for all spilling live ranges
@@ -781,10 +801,16 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
     // Memoize any DOWN reaching definitions for use as DEBUG info
     for( insidx = 0; insidx < spill_cnt; insidx++ ) {
-      debug_defs[insidx] = (UPblock[insidx]) ? nullptr : Reachblock[insidx];
-
+      debug_defs[insidx] = nullptr;
+      debug_defs_sim[insidx] = 0;
+      if (Reachblock[insidx] == nullptr) {
+        continue;
+      }
+      if (!UPblock[insidx]) {
+        debug_defs[insidx] = Reachblock[insidx];
+        debug_defs_sim[insidx] = Reachblock_sim[insidx];
+      }
       changed |= UP_entry[insidx]->test(b->_pre_order) != UPblock[insidx];
-
       if( UPblock[insidx] ) {     // Memoize UP decision at block entry
         UP_entry[insidx]->set( b->_pre_order );
       } else {
@@ -829,8 +855,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               n->disconnect_inputs(C);
               b->remove_node(insidx);
               insidx--;
-              b->_ihrp_index--;
-              b->_fhrp_index--;
+              if( insidx < b->_ihrp_index ) b->_ihrp_index--;
+              if( insidx < b->_fhrp_index ) b->_fhrp_index--;
             }
           }
         }
@@ -865,6 +891,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
               // If there is already a valid stack definition available, use it
               if( debug_defs[slidx] != nullptr ) {
                 Reachblock[slidx] = debug_defs[slidx];
+                Reachblock_sim[slidx] = debug_defs_sim[slidx];
               }
               else if (fixpoint) {
                 // Insert point is just past last use or def in the block
@@ -902,6 +929,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                 if (b->end_idx() > orig_eidx) {
                   insidx++;
                 }
+              } else {
+                // Only simulate the split if not at fixpoint
+                Reachblock_sim[slidx] = next_sim++;
+                debug_defs_sim[slidx] = Reachblock_sim[slidx];
               }
               // This is a new DEF, so update UP
               UPblock[slidx] = false;
@@ -933,8 +964,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         n->replace_by( n->in(copyidx) );
         n->set_req( copyidx, nullptr );
         b->remove_node(insidx--);
-        b->_ihrp_index--; // Adjust the point where we go hi-pressure
-        b->_fhrp_index--;
+        // Adjust the point where we go hi-pressure
+        if( insidx < b->_ihrp_index ) b->_ihrp_index--;
+        if( insidx < b->_fhrp_index ) b->_fhrp_index--;
         continue;
       }
 
@@ -1188,7 +1220,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   RegMask tmp_rm(umask);
                   tmp_rm.SUBTRACT(Matcher::STACK_ONLY_mask);
                   if( dmask.overlap(tmp_rm) ) {
-                    if( def != n->in(inpidx) ) {
+                    if( fixpoint && def != n->in(inpidx) ) {
                       n->set_req(inpidx, def);
                     }
                     continue;
@@ -1204,10 +1236,12 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                 }
                 maxlrg += delta;
                 insidx += delta;  // Reset iterator to skip USE side split
+                }
                 // Check for debug-info split.  Capture it for later
                 // debug splits of the same value
-                if (jvms && jvms->debug_start() <= inpidx && inpidx < oopoff)
+                if (jvms && jvms->debug_start() <= inpidx && inpidx < oopoff) {
                   debug_defs[slidx] = n->in(inpidx);
+                  debug_defs_sim[slidx] = 0;
                 }
               }
               else {       // DOWN, Split-UP and check register pressure
@@ -1240,6 +1274,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
                   Reachblock[slidx] = n->in(inpidx);
                   maxlrg += delta;
                   insidx += delta;  // Reset iterator to skip USE side split
+                  } else {
+                    // Only simulate the split if not at fixpoint
+                    Reachblock_sim[slidx] = next_sim++;
                   }
                 }
               }  // End else DOWN
@@ -1285,7 +1322,9 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           }
           } else {
             Reachblock[slidx] = n;
-            debug_defs[slidx] = defup ? nullptr : n;
+            Reachblock_sim[slidx] = 0;
+            debug_defs[slidx] = n;
+            debug_defs_sim[slidx] = 0;
           }
           // Split DEF's Down
           UPblock[slidx] = false;
@@ -1301,10 +1340,12 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         else {                  // Neither bound nor HRP, must be LRP
           // otherwise, just record the def
           Reachblock[slidx] = n;
+          Reachblock_sim[slidx] = 0;
           // UP should come from the outRegmask() of the DEF
           UPblock[slidx] = defup;
           // Update debug list of reaching down definitions, kill if DEF is UP
           debug_defs[slidx] = defup ? nullptr : n;
+          debug_defs_sim[slidx] = 0;
 #ifndef PRODUCT
           // DEBUG
           if( fixpoint && trace_spilling() ) {
@@ -1369,6 +1410,7 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
         }
 #endif
         Reachblock[slidx] = nullptr;
+        Reachblock_sim[slidx] = 0;
       } else {
         assert(Reachblock[slidx] != nullptr,"No reaching definition for liveout value");
       }
@@ -1379,9 +1421,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 #endif
 
     for( insidx = 0; insidx < spill_cnt; insidx++ ) {
-
+      if (Reachblock[insidx] == nullptr) {
+        continue;
+      }
       changed |= UP_exit[insidx]->test(b->_pre_order) != UPblock[insidx];
-
       if( UPblock[insidx] ) {     // Memoize UP decision at block exit
         UP_exit[insidx]->set( b->_pre_order );
       } else {
@@ -1391,6 +1434,8 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
 
   }  // End For All Blocks
     iter++;
+
+    assert(!fixpoint || !changed, "unexpected change after fixpoint");
   }
 
   //----------PASS 2----------
@@ -1467,7 +1512,10 @@ uint PhaseChaitin::Split(uint maxlrg, ResourceArea* split_arena) {
           return 0;
         }
         maxlrg += delta;
-        set_was_spilled(phi->in(i));
+        if (u) {
+          // Flag this lift-up as already-spilled.
+          set_was_spilled(phi->in(i));
+        }
       }
     }  // End for all inputs to the Phi
   }  // End for all Phi Nodes
