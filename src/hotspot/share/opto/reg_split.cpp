@@ -585,8 +585,8 @@ uint PhaseChaitin::Split_new(uint maxlrg, ResourceArea* split_arena) {
 
   while(!fixpoint) {
 
-    if(iter > 50) {
-      assert(false, "unreasonable number of split iterations");
+    if(iter > 10) {
+      assert(false, "excessive number of split iterations");
       fixpoint = true;
     } else if (!changed) {
       fixpoint = true;
