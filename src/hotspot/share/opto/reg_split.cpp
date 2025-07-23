@@ -1516,7 +1516,7 @@ uint PhaseChaitin::Split_new(uint maxlrg, ResourceArea* split_arena) {
           return 0;
         }
         maxlrg += delta;
-        if (u) {
+        if (!u) {
           // Flag this lift-up as already-spilled.
           set_was_spilled(phi->in(i));
         }
