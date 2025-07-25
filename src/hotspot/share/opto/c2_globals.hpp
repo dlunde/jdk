@@ -269,6 +269,11 @@
           "Maximum allowed edges in the interference graphs")               \
           range(0, max_juint)                                               \
                                                                             \
+  product(uint, MaxSplitIterations, 2, DIAGNOSTIC,                          \
+          "Maximum number of iterations in pass 1 of live range "           \
+          "splitting")                                                      \
+          range(1, max_juint)                                               \
+                                                                            \
   develop(bool, UseUniqueSubclasses, true,                                  \
           "Narrow an abstract reference to the unique concrete subclass")   \
                                                                             \
