@@ -570,7 +570,9 @@ void PhaseChaitin::Register_Allocate() {
           tty->print_cr("TRIP_DATA %d", _trip_cnt);
         }
         C->record_method_not_compilable("failed spill-split-recycle sanity check");
-        assert(false, "debug");
+        if (UseNewCode3) {
+          assert(false, "debug");
+        }
         return;
       }
     }
