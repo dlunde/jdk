@@ -1480,22 +1480,23 @@ static OptoReg::Name find_first_set(LRG& lrg, RegMask& mask) {
 
 OptoReg::Name PhaseChaitin::select_bias_lrg_color(LRG& lrg, uint bias_lrg) {
   if (bias_lrg != 0) {
-    // If bias lrg has a color.
-    if(!_ifg->_yanked->test(bias_lrg)) {
+    // If bias_lrg has a color.
+    if (!_ifg->_yanked->test(bias_lrg)) {
       OptoReg::Name reg = lrgs(bias_lrg).reg();
-      //  And it is legal for you,
+      //  And it is legal for lrg,
       if (is_legal_reg(lrg, reg)) {
         return reg;
       }
     } else if (!lrg.mask().is_offset()) {
-      // Choose a color which is legal for him
+      // Choose a color which is legal for bias_lrg
       ResourceMark rm(C->regmask_arena());
       RegMask tempmask(lrg.mask(), C->regmask_arena());
       tempmask.and_with(lrgs(bias_lrg).mask());
       tempmask.clear_to_sets(lrg.num_regs());
       OptoReg::Name reg = find_first_set(lrg, tempmask);
-      if (OptoReg::is_valid(reg))
+      if (OptoReg::is_valid(reg)) {
         return reg;
+      }
     }
   }
   return OptoReg::Bad;
@@ -1665,16 +1666,21 @@ uint PhaseChaitin::Select( ) {
     }
 
     auto is_commutative_oper = [](MachNode* def) {
-      if (def) {
-        switch(def->ideal_Opcode()) {
-          case Op_AddI: case Op_AddL:
-          case Op_MulI: case Op_MulL:
-          case Op_XorI: case Op_XorL:
-          case Op_OrI:  case Op_OrL:
-          case Op_AndI: case Op_AndL:
-            return true;
-          default:
-            return false;
+      if (def != nullptr) {
+        switch (def->ideal_Opcode()) {
+        case Op_AddI:
+        case Op_AddL:
+        case Op_MulI:
+        case Op_MulL:
+        case Op_XorI:
+        case Op_XorL:
+        case Op_OrI:
+        case Op_OrL:
+        case Op_AndI:
+        case Op_AndL:
+          return true;
+        default:
+          return false;
         }
       }
       return false;
@@ -1686,11 +1692,11 @@ uint PhaseChaitin::Select( ) {
       if (mdef->req() > 1) {
         Node* in1 = mdef->in(mdef->oper_input_base());
         if (in1 != nullptr) {
-          uint lrin1 = _lrg_map.find(in1);
-          // If a def does not interfere with first input's def,
-          // then bias its color towards its input's def.
-          if (lrin1 != 0 && lrg->_copy_bias == 0) {
-            lrg->_copy_bias = lrin1;
+          uint lrg_in1 = _lrg_map.find(in1);
+          // If a def does not interfere with its first input's def,
+          // then bias its color towards that def.
+          if (lrg_in1 != 0 && lrg->_copy_bias == 0) {
+            lrg->_copy_bias = lrg_in1;
           }
         }
       }
@@ -1698,11 +1704,11 @@ uint PhaseChaitin::Select( ) {
       if (is_commutative_oper(mdef) && mdef->req() > 2) {
         Node* in2 = mdef->in(mdef->oper_input_base() + 1);
         if (in2 != nullptr) {
-          uint lrin2 = _lrg_map.find(in2);
-          // If a def does not interfere with second input's def,
-          // then bias its color towards its input's def.
-          if (lrin2 != 0 && lrg->_copy_bias2 == 0) {
-            lrg->_copy_bias2 = lrin2;
+          uint lrg_in2 = _lrg_map.find(in2);
+          // If a def does not interfere with its second input's def,
+          // then bias its color towards that def.
+          if (lrg_in2 != 0 && lrg->_copy_bias2 == 0) {
+            lrg->_copy_bias2 = lrg_in2;
           }
         }
       }
