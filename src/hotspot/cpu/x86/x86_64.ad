@@ -435,6 +435,9 @@ bool castLL_is_imm32(const Node* n) {
 }
 
 bool Matcher::should_attempt_register_biasing(int mopc) {
+  if (!UseNewCode) {
+    return false;
+  }
   switch(mopc) {
     default:
       return false;
