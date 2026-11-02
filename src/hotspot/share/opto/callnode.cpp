@@ -2094,7 +2094,7 @@ AllocateNode::AllocateNode(Compile* C, const TypeFunc *atype,
 {
   init_class_id(Class_Allocate);
   _is_scalar_replaceable = false;
-  _is_non_escaping = false;
+  _escape_state = PointsToNode::GlobalEscape;
   _is_allocation_MemBar_redundant = false;
   Node *topnode = C->top();
 

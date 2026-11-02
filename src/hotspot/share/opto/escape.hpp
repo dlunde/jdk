@@ -391,6 +391,9 @@ private:
   // Add final simple edges to graph.
   void add_final_edges(Node *n);
 
+  // TODO comment
+  void record_escape_states(const GrowableArray<JavaObjectNode*>& java_objects_worklist);
+
   // Finish Graph construction.
   bool complete_connection_graph(GrowableArray<PointsToNode*>&   ptnodes_worklist,
                                  GrowableArray<JavaObjectNode*>& non_escaped_worklist,
